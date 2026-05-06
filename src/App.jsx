@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Activity,
   AlertTriangle,
@@ -13,14 +13,8 @@ import {
   TrendingUp,
   Wifi,
 } from 'lucide-react'
-import {
-  ALERTS,
-  FILTER_STORAGE_KEYS,
-  PHASE_OPTIONS,
-  STATUS_OPTIONS,
-  SYSTEM_STATUS,
-  WATCHLIST,
-} from './data/wyckoffMockData.js'
+import { EMPTY_DASHBOARD_SNAPSHOT, FILTER_STORAGE_KEYS } from './lib/dashboardContracts.js'
+import { loadDashboardSnapshot } from './lib/loadDashboardSnapshot.js'
 import './app.css'
 
 function readSessionValue(key, fallbackValue) {
@@ -124,20 +118,87 @@ function formatTime(value) {
   }).format(value)
 }
 
+function getToolbarStatusLabel(loadState, lastUpdated, loadError) {
+  if (loadState === 'error') {
+    return loadError
+  }
+
+  if (loadState === 'ready') {
+    return `最后更新 ${formatTime(lastUpdated)}`
+  }
+
+  if (loadState === 'refreshing') {
+    return '正在刷新本地快照'
+  }
+
+  return '正在加载本地快照'
+}
+
 export default function App() {
+  const [dashboardSnapshot, setDashboardSnapshot] = useState(EMPTY_DASHBOARD_SNAPSHOT)
+  const [loadState, setLoadState] = useState('loading')
+  const [loadError, setLoadError] = useState('')
   const [phaseFilter, setPhaseFilter] = useState(() => readSessionValue(FILTER_STORAGE_KEYS.phase, 'all'))
   const [statusFilter, setStatusFilter] = useState(() => readSessionValue(FILTER_STORAGE_KEYS.status, 'all'))
   const [acknowledgedAlerts, setAcknowledgedAlerts] = useState(() => readSessionList(FILTER_STORAGE_KEYS.acknowledgedAlerts))
-  const [selectedSymbol, setSelectedSymbol] = useState(() => readSessionValue(FILTER_STORAGE_KEYS.selectedSymbol, WATCHLIST[0]?.symbol ?? ''))
+  const [selectedSymbol, setSelectedSymbol] = useState(() => readSessionValue(FILTER_STORAGE_KEYS.selectedSymbol, ''))
   const [lastUpdated, setLastUpdated] = useState(() => new Date())
 
+  const { alerts: alertFeed, phaseOptions, statusOptions, systemStatus, watchlist } = dashboardSnapshot
+
+  useEffect(() => {
+    let isActive = true
+
+    async function bootstrapDashboardSnapshot() {
+      try {
+        const snapshot = await loadDashboardSnapshot()
+
+        if (!isActive) {
+          return
+        }
+
+        setDashboardSnapshot(snapshot)
+        setLastUpdated(new Date())
+        setLoadState('ready')
+      } catch (error) {
+        if (!isActive) {
+          return
+        }
+
+        setLoadError(error instanceof Error ? error.message : '加载本地快照失败，请稍后重试。')
+        setLoadState('error')
+      }
+    }
+
+    void bootstrapDashboardSnapshot()
+
+    return () => {
+      isActive = false
+    }
+  }, [])
+
+  async function refreshDashboardSnapshot(nextState = 'refreshing') {
+    setLoadState(nextState)
+    setLoadError('')
+
+    try {
+      const snapshot = await loadDashboardSnapshot()
+      setDashboardSnapshot(snapshot)
+      setLastUpdated(new Date())
+      setLoadState('ready')
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : '加载本地快照失败，请稍后重试。')
+      setLoadState('error')
+    }
+  }
+
   const filteredWatchlist = useMemo(() => {
-    return WATCHLIST.filter((item) => {
+    return watchlist.filter((item) => {
       const phasePass = phaseFilter === 'all' || item.phase === phaseFilter
       const statusPass = statusFilter === 'all' || item.status === statusFilter
       return phasePass && statusPass
     })
-  }, [phaseFilter, statusFilter])
+  }, [phaseFilter, statusFilter, watchlist])
 
   const summary = useMemo(() => {
     return {
@@ -149,11 +210,11 @@ export default function App() {
   }, [filteredWatchlist])
 
   const alerts = useMemo(() => {
-    return ALERTS.map((alert) => ({
+    return alertFeed.map((alert) => ({
       ...alert,
       acknowledged: acknowledgedAlerts.includes(alert.id),
     }))
-  }, [acknowledgedAlerts])
+  }, [acknowledgedAlerts, alertFeed])
 
   const activeSelectedSymbol = useMemo(() => {
     if (filteredWatchlist.some((item) => item.symbol === selectedSymbol)) {
@@ -180,7 +241,7 @@ export default function App() {
   }
 
   function handleRefresh() {
-    setLastUpdated(new Date())
+    void refreshDashboardSnapshot(loadState === 'ready' ? 'refreshing' : 'loading')
   }
 
   function handleSelectSymbol(symbol) {
@@ -198,6 +259,31 @@ export default function App() {
     persistSessionList(FILTER_STORAGE_KEYS.acknowledgedAlerts, nextAlerts)
   }
 
+  const tableEmptyMessage =
+    filteredWatchlist.length > 0
+      ? ''
+      : loadState === 'error' && watchlist.length === 0
+        ? `${loadError} 请点击上方“刷新视图”重试。`
+        : loadState !== 'ready' && watchlist.length === 0
+          ? '正在加载监控快照...'
+          : '当前过滤条件下没有可显示的标的。'
+
+  const alertEmptyMessage =
+    alerts.length > 0
+      ? ''
+      : loadState === 'error' && alertFeed.length === 0
+        ? `${loadError} 请点击上方“刷新视图”重试。`
+        : loadState !== 'ready' && alertFeed.length === 0
+          ? '正在加载预警流...'
+          : '当前快照没有待展示的预警。'
+
+  const inspectionEmptyMessage =
+    loadState === 'error' && watchlist.length === 0
+      ? `${loadError} 请点击上方“刷新视图”重试。`
+      : loadState !== 'ready' && watchlist.length === 0
+        ? '正在加载标的检查面板...'
+        : '当前过滤条件下没有可检查的标的。'
+
   return (
     <div className="wyckoff-page">
       <header className="wyckoff-hero">
@@ -212,15 +298,20 @@ export default function App() {
         <div className="wyckoff-hero-actions">
           <div className="wyckoff-status-pill">
             <Wifi size={16} />
-            <span>{SYSTEM_STATUS.connectionLabel}</span>
+            <span>{systemStatus.connectionLabel}</span>
           </div>
           <div className="wyckoff-status-pill">
             <Database size={16} />
-            <span>{SYSTEM_STATUS.dataSourceLabel}</span>
+            <span>{systemStatus.dataSourceLabel}</span>
           </div>
-          <button className="wyckoff-refresh-button" type="button" onClick={handleRefresh}>
+          <button
+            className="wyckoff-refresh-button"
+            type="button"
+            onClick={handleRefresh}
+            disabled={loadState === 'loading' || loadState === 'refreshing'}
+          >
             <RefreshCcw size={16} />
-            刷新视图
+            {loadState === 'refreshing' ? '刷新中...' : '刷新视图'}
           </button>
         </div>
       </header>
@@ -229,7 +320,7 @@ export default function App() {
         <label>
           <span>Phase filter</span>
           <select value={phaseFilter} onChange={handlePhaseChange}>
-            {PHASE_OPTIONS.map((option) => (
+            {phaseOptions.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
@@ -240,7 +331,7 @@ export default function App() {
         <label>
           <span>Signal filter</span>
           <select value={statusFilter} onChange={handleStatusChange}>
-            {STATUS_OPTIONS.map((option) => (
+            {statusOptions.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
@@ -250,7 +341,7 @@ export default function App() {
 
         <div className="wyckoff-toolbar-meta">
           <Clock3 size={16} />
-          <span>Last updated {formatTime(lastUpdated)}</span>
+          <span>{getToolbarStatusLabel(loadState, lastUpdated, loadError)}</span>
         </div>
       </section>
 
@@ -299,58 +390,62 @@ export default function App() {
           </div>
 
           <div className="wyckoff-table-wrap">
-            <table className="wyckoff-table">
-              <thead>
-                <tr>
-                  <th>标的</th>
-                  <th>阶段</th>
-                  <th>冰线 / 小溪</th>
-                  <th>现价 / 量能</th>
-                  <th>P&amp;F 目标</th>
-                  <th>状态</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredWatchlist.map((item) => (
-                  <tr key={item.symbol} className={item.symbol === activeSelectedSymbol ? 'is-selected' : ''}>
-                    <td>
-                      <button
-                        type="button"
-                        className="wyckoff-symbol-button"
-                        onClick={() => handleSelectSymbol(item.symbol)}
-                        aria-pressed={item.symbol === activeSelectedSymbol}
-                      >
-                        <strong>{item.name}</strong>
-                        <span>{item.symbol}</span>
-                      </button>
-                    </td>
-                    <td>
-                      <span className={`wyckoff-phase-badge ${item.phase.toLowerCase().replace(/\s+/g, '-')}`}>
-                        {item.phase}
-                      </span>
-                      <small>{item.subPhase}</small>
-                    </td>
-                    <td>
-                      <strong>{formatCurrency(item.support)}</strong>
-                      <span>{formatCurrency(item.resistance)}</span>
-                    </td>
-                    <td>
-                      <strong>{formatCurrency(item.currentPrice)}</strong>
-                      <span>{item.volumeState}</span>
-                    </td>
-                    <td>
-                      <strong>{item.targetPrice ? formatCurrency(item.targetPrice) : '--'}</strong>
-                      <span>{item.riskReward ? `${item.riskReward.toFixed(1)} : 1` : '未计算'}</span>
-                    </td>
-                    <td>
-                      <span className={`wyckoff-status-pill-inline ${getStatusTone(item.status)}`}>
-                        {getStatusLabel(item.status)}
-                      </span>
-                    </td>
+            {filteredWatchlist.length > 0 ? (
+              <table className="wyckoff-table">
+                <thead>
+                  <tr>
+                    <th>标的</th>
+                    <th>阶段</th>
+                    <th>冰线 / 小溪</th>
+                    <th>现价 / 量能</th>
+                    <th>P&amp;F 目标</th>
+                    <th>状态</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {filteredWatchlist.map((item) => (
+                    <tr key={item.symbol} className={item.symbol === activeSelectedSymbol ? 'is-selected' : ''}>
+                      <td>
+                        <button
+                          type="button"
+                          className="wyckoff-symbol-button"
+                          onClick={() => handleSelectSymbol(item.symbol)}
+                          aria-pressed={item.symbol === activeSelectedSymbol}
+                        >
+                          <strong>{item.name}</strong>
+                          <span>{item.symbol}</span>
+                        </button>
+                      </td>
+                      <td>
+                        <span className={`wyckoff-phase-badge ${item.phase.toLowerCase().replace(/\s+/g, '-')}`}>
+                          {item.phase}
+                        </span>
+                        <small>{item.subPhase}</small>
+                      </td>
+                      <td>
+                        <strong>{formatCurrency(item.support)}</strong>
+                        <span>{formatCurrency(item.resistance)}</span>
+                      </td>
+                      <td>
+                        <strong>{formatCurrency(item.currentPrice)}</strong>
+                        <span>{item.volumeState}</span>
+                      </td>
+                      <td>
+                        <strong>{item.targetPrice ? formatCurrency(item.targetPrice) : '--'}</strong>
+                        <span>{item.riskReward ? `${item.riskReward.toFixed(1)} : 1` : '未计算'}</span>
+                      </td>
+                      <td>
+                        <span className={`wyckoff-status-pill-inline ${getStatusTone(item.status)}`}>
+                          {getStatusLabel(item.status)}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p className="wyckoff-empty-state">{tableEmptyMessage}</p>
+            )}
           </div>
         </div>
 
@@ -385,9 +480,7 @@ export default function App() {
                     <span className={`wyckoff-status-pill-inline ${getValidationTone(selectedCandidate.l2Validation)}`}>
                       {getValidationLabel(selectedCandidate.l2Validation)}
                     </span>
-                    <span className="wyckoff-status-pill-inline building">
-                      {SYSTEM_STATUS.modeLabel}
-                    </span>
+                    <span className="wyckoff-status-pill-inline building">{systemStatus.modeLabel}</span>
                   </div>
 
                   <p>{selectedCandidate.thesis}</p>
@@ -436,7 +529,7 @@ export default function App() {
                 </div>
               </div>
             ) : (
-              <p className="wyckoff-empty-state">当前过滤条件下没有可检查的标的。</p>
+              <p className="wyckoff-empty-state">{inspectionEmptyMessage}</p>
             )}
           </div>
 
@@ -450,28 +543,32 @@ export default function App() {
             </div>
 
             <div className="wyckoff-alert-list">
-              {alerts.map((alert) => (
-                <article key={alert.id} className={`wyckoff-alert-card ${alert.acknowledged ? 'is-acknowledged' : ''}`}>
-                  <div className="wyckoff-alert-meta">
-                    <span>{alert.time}</span>
-                    <span>{alert.type}</span>
-                  </div>
-                  <strong>{alert.symbol}</strong>
-                  <p>{alert.message}</p>
-
-                  {!alert.acknowledged ? (
-                    <button type="button" onClick={() => handleAcknowledge(alert.id)}>
-                      <CheckCircle2 size={16} />
-                      标记已确认
-                    </button>
-                  ) : (
-                    <div className="wyckoff-alert-ack">
-                      <CheckCircle2 size={16} />
-                      已确认
+              {alerts.length > 0 ? (
+                alerts.map((alert) => (
+                  <article key={alert.id} className={`wyckoff-alert-card ${alert.acknowledged ? 'is-acknowledged' : ''}`}>
+                    <div className="wyckoff-alert-meta">
+                      <span>{alert.time}</span>
+                      <span>{alert.type}</span>
                     </div>
-                  )}
-                </article>
-              ))}
+                    <strong>{alert.symbol}</strong>
+                    <p>{alert.message}</p>
+
+                    {!alert.acknowledged ? (
+                      <button type="button" onClick={() => handleAcknowledge(alert.id)}>
+                        <CheckCircle2 size={16} />
+                        标记已确认
+                      </button>
+                    ) : (
+                      <div className="wyckoff-alert-ack">
+                        <CheckCircle2 size={16} />
+                        已确认
+                      </div>
+                    )}
+                  </article>
+                ))
+              ) : (
+                <p className="wyckoff-empty-state">{alertEmptyMessage}</p>
+              )}
             </div>
           </div>
 

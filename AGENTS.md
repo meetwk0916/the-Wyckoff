@@ -6,6 +6,8 @@
 
 当前产品目标是先把 Wyckoff 策略监控流程做成可见的操作台，再逐步接入真实数据与执行链路。
 
+当前对接优先级已经明确：ptrade 相关能力按三阶段推进，其中 Phase 1 获取 L2 订单流是后续首要功能。
+
 ## 优先阅读
 
 1. `README.md`
@@ -13,12 +15,13 @@
 3. `docs/wyckoff-mvp/IMPLEMENTATION-PATH.md`
 4. `docs/wyckoff-mvp/MVP.md`
 5. `docs/wyckoff-mvp/TEST-CASES.md`
+6. `docs/wyckoff-mvp/PTRADE-INTEGRATION.md`
 
 ## 当前状态
 
 - 基于 Vite + React 的单页控制台
 - 已包含监控列表、过滤器、预警流、指标卡片、检查面板
-- 仪表盘数据契约位于 `src/data/wyckoffMockData.js`
+- 仪表盘数据快照位于 `public/mock/wyckoff-dashboard.json`，通过 `src/lib/loadDashboardSnapshot.js` 接入
 - 当前没有后端，也没有券商接入
 - 手工验收用例已整理完毕
 
@@ -39,6 +42,6 @@
 
 ## 推荐下一步
 
-1. 将 JS 模拟数据替换为本地 JSON 或 mock API 层。
-2. 为过滤、预警确认和标的选择补自动化 UI 测试。
-3. 在测试就位后，把页面拆成更小的控制台组件。
+1. 启动 ptrade Phase 1：打通 L2 订单流获取、标准化、录制与回放。
+2. 将本地 JSON 快照继续演进为 mock API 层，并拆分 `watchlist`、`alerts`、`system status` 的加载边界。
+3. 为过滤、预警确认和标的选择补自动化 UI 测试。

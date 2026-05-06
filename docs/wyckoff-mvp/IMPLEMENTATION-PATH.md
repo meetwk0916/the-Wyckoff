@@ -71,19 +71,19 @@
 
 ### 已完成功能
 
-- [x] `watchlist`、`alerts`、`system status` 模拟数据已从页面组件抽离到 `src/data/wyckoffMockData.js`
+- [x] `watchlist`、`alerts`、`system status` 模拟数据已从页面组件抽离到 `public/mock/wyckoff-dashboard.json`
 - [x] 当前数据契约已形成可直接替换的集中入口
 
 ### 待完善功能
 
-- [ ] 把模拟数据下沉为 `public/mock/` JSON 或本地 mock API
-- [ ] 新增数据访问层，例如 `src/lib/contracts.js` 或 `src/lib/loadDashboardSnapshot.js`
-- [ ] 让 `App.jsx` 不再直接导入大块模拟数据常量
-- [ ] 保持 UI 对数据契约的消费接口稳定，不让组件知道数据来自本地还是远端
+- [x] 把模拟数据下沉为 `public/mock/` JSON
+- [x] 已新增数据访问层 `src/lib/loadDashboardSnapshot.js`
+- [x] `App.jsx` 不再直接导入大块模拟数据常量
+- [x] UI 已通过加载层消费数据契约，不直接关心数据来自本地快照
 
 ### 待实现功能
 
-- [ ] 定义异步加载 `watchlist snapshot` 的正式接口
+- [x] 已定义异步加载 `watchlist snapshot` 的正式接口
 - [ ] 定义 `alerts` 与 `system status` 的独立加载边界
 - [ ] 为数据读取失败、超时、部分缺失建立统一的状态模型
 
@@ -176,18 +176,46 @@
 - [ ] 增加更贴近策略语言的检查对象，例如 spring 质量、BUEC 复核、板块共振
 - [ ] 建立可追踪的状态转换审计视图
 
+## ptrade 对接分阶段
+
+### Phase 1：L2 订单流接入
+
+当前定位：首要优先级。
+
+- [ ] 明确 ptrade 环境中的 L2 数据来源、权限要求和标的订阅方式
+- [ ] 定义统一的 L2 订单流数据契约，避免 UI 或策略侧直接耦合原始返回
+- [ ] 建立 L2 订单流录制与回放能力，服务 Wyckoff 2.0 研究与验证
+- [ ] 在界面或系统状态中展示 L2 连接、延迟和数据新鲜度
+
+### Phase 2：其他 API 能力与回测
+
+当前定位：在 Phase 1 稳定后再推进。
+
+- [ ] 梳理并接入除 L2 订单流外的研究类 API 能力，例如历史数据与查询接口
+- [ ] 为回测、复盘和研究导出建立稳定输入边界
+- [ ] 区分研究接口、查询接口和执行接口，避免提前混入自动交易逻辑
+
+### Phase 3：自动交易与执行闭环
+
+当前定位：最后阶段。
+
+- [ ] 在 Phase 1 与 Phase 2 稳定后，再进入下单、撤单和执行反馈闭环
+- [ ] 先落人工审批与风控闸门，再考虑半自动与自动交易
+- [ ] 建立可审计的交易执行日志与失败恢复策略
+
 ## 当前最优下一步
 
 优先顺序建议如下：
 
-1. 数据边界稳定化
-2. 自动化验证
-3. 组件解耦
+1. ptrade Phase 1：L2 订单流接入与标准化
+2. 数据边界稳定化
+3. 自动化验证
+4. 组件解耦
 
 原因：
 
-- 这三步能显著提高后续智能体接手的稳定性。
-- 先碰数据边界和测试，比先大拆组件更不容易返工。
+- L2 订单流是当前判断下 Wyckoff 2.0 最关键的新增数据能力，应当优先落地。
+- 在 L2 数据输入明确后，再继续收紧数据边界和测试，返工风险更低。
 
 ## 变更原则
 
@@ -205,8 +233,9 @@
 3. `docs/wyckoff-mvp/PRD.md`
 4. `docs/wyckoff-mvp/IMPLEMENTATION-PATH.md`
 5. `docs/wyckoff-mvp/TEST-CASES.md`
-6. `src/data/wyckoffMockData.js`
-7. `src/App.jsx`
+6. `public/mock/wyckoff-dashboard.json`
+7. `src/lib/loadDashboardSnapshot.js`
+8. `src/App.jsx`
 
 ## 当前发布前最低检查
 

@@ -132,6 +132,12 @@ select {
   cursor: pointer;
 }
 
+.wyckoff-refresh-button:disabled,
+.wyckoff-alert-card button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
 .wyckoff-refresh-button:hover,
 .wyckoff-alert-card button:hover {
   border-color: rgba(108, 227, 214, 0.44);

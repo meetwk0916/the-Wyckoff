@@ -10,6 +10,12 @@
 - 人工预警确认
 - 文档与测试用例先行
 
+下一阶段首要功能清单：
+
+- ptrade Phase 1：优先获取 L2 订单流，并沉淀统一数据契约与回放能力
+- ptrade Phase 2：在 L2 数据稳定后扩展其他 API 能力，例如回测与研究接口
+- ptrade Phase 3：最后再推进自动交易、执行反馈与风控闭环
+
 ## 项目定位
 
 这个项目独立于现有聊天项目，只承载 Wyckoff Radar MVP 的前端原型与后续迭代。
@@ -27,6 +33,7 @@
 - [docs/wyckoff-mvp/IMPLEMENTATION-PATH.md](docs/wyckoff-mvp/IMPLEMENTATION-PATH.md)
 - [docs/wyckoff-mvp/SPRINTS.md](docs/wyckoff-mvp/SPRINTS.md)
 - [docs/wyckoff-mvp/MVP.md](docs/wyckoff-mvp/MVP.md)
+- [docs/wyckoff-mvp/PTRADE-INTEGRATION.md](docs/wyckoff-mvp/PTRADE-INTEGRATION.md)
 - [docs/wyckoff-mvp/TEST-CASES.md](docs/wyckoff-mvp/TEST-CASES.md)
 - [AGENTS.md](AGENTS.md)
 
