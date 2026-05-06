@@ -13,11 +13,16 @@ def initialize(context):
     g.symbol = '600570.XSHG'
     g.validation_target = 'https://httpbin.org/post'
     g.validation_file = 'ptrade-phase1-validation-last.json'
+    g.smoke_test_enabled = False
+    g.smoke_test_done = False
     g.validation_done = False
 
     set_universe(g.symbol)
     set_parameters(not_restart_trade='1', server_restart_not_do_before='1')
     run_interval(context, validate_live_session, seconds=10, interval_timer_ranges='09:30-14:59')
+
+    if g.smoke_test_enabled:
+        validate_smoke_session(context)
 
 
 def before_trading_start(context, data):
@@ -32,6 +37,21 @@ def before_trading_start(context, data):
 
 def handle_data(context, data):
     pass
+
+
+def validate_smoke_session(context):
+    if g.smoke_test_done:
+        return
+
+    result = build_result(context, 'smoke')
+    result['account'] = collect_account_info()
+    result['l2'] = build_skipped_l2_status(
+        'smoke test 仅验证账号绑定和出站 HTTP；Level2 请在交易时段使用 live 模式确认。'
+    )
+    result['outbound'] = probe_outbound_http(result)
+
+    persist_and_log(result)
+    g.smoke_test_done = True
 
 
 def validate_live_session(context):
@@ -157,6 +177,25 @@ def collect_l2_status(symbol):
         result['status'] = 'error'
         result['message'] = 'L2 验证异常: {0}'.format(error)
         return result
+
+
+def build_skipped_l2_status(message):
+    return {
+        'status': 'skipped',
+        'message': message,
+        'symbol': g.symbol,
+        'tradeStatus': None,
+        'snapshotTimestamp': None,
+        'topBid': normalize_level(None),
+        'topAsk': normalize_level(None),
+        'queueVisible': False,
+        'entrustRows': 0,
+        'entrustFields': [],
+        'entrustSample': None,
+        'transactionRows': 0,
+        'transactionFields': [],
+        'transactionSample': None,
+    }
 
 
 def probe_outbound_http(result):

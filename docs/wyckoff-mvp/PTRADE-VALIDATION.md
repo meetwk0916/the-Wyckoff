@@ -2,6 +2,8 @@
 
 ## 目的
 
+这份脚本现在按 Phase 0 环境预检查理解：它用于给 `ptrade_wyckoff_trader.py` 上线前做账号、L2 和网络边界确认，不再作为最终交易 / 回测方案本身。
+
 这份脚本用于在官方 PTrade 交易环境里一次性验证三件事：
 
 1. 当前策略是否绑定到了预期账号。
@@ -66,10 +68,17 @@ g.symbol = '600570.XSHG'
 g.validation_target = 'https://httpbin.org/post'
 ```
 
+如果你要在非交易时段先做一轮 smoke test，再额外打开这个开关：
+
+```python
+g.smoke_test_enabled = True
+```
+
 建议：
 
 - `g.symbol` 换成你实际打算联调的股票。
 - 如果你怀疑公网被限制，把 `g.validation_target` 换成你能控制的内网 relay。
+- 夜间 smoke test 的第一轮建议先把 `g.validation_target` 设为空，只验证账号绑定。
 
 ## 运行步骤
 
@@ -79,6 +88,24 @@ g.validation_target = 'https://httpbin.org/post'
 4. 按需要修改 `g.validation_target`。
 5. 启动交易。
 6. 在交易日志里查看 `Wyckoff ptrade validation => ...`。
+
+## 夜间 smoke test
+
+如果当前已经收盘，先不要做 Level2 结论，按下面步骤做一轮轻量验证：
+
+1. 把 `g.smoke_test_enabled = True`。
+2. 第一轮把 `g.validation_target = ''`。
+3. 启动策略。
+4. 在日志里查看 `phase = smoke` 的结果。
+5. 这一轮重点只看 `account` 是否有值。
+6. 第二轮把 `g.validation_target` 改成 `https://httpbin.org/post` 或你的 relay 地址，再启动一次。
+7. 第二轮重点只看 `outbound.status`。
+
+说明：
+
+- `smoke` 模式会明确把 `l2.status` 标记为 `skipped`。
+- 真正的 Level2 判断仍然要在交易时段查看 `phase = live` 的结果。
+- 做完 smoke test 后，建议把 `g.smoke_test_enabled` 改回 `False`，避免影响白天的正常验证习惯。
 
 ## 输出位置
 
@@ -104,6 +131,7 @@ g.validation_target = 'https://httpbin.org/post'
 - `status = market_not_live`：当前不是适合确认 L2 的交易时段，结果暂不下结论。
 - `status = not_detected`：快照有了，但逐笔和委托笔数没确认出来，优先检查 Level2 权限、标的订阅和市场时段。
 - `status = snapshot_unavailable`：先检查标的代码、行情权限和交易环境本身。
+- `status = skipped`：当前执行的是 smoke test，只做账号和网络验证，不做 Level2 结论。
 - `status = error`：优先看日志里的异常信息。
 
 ### 出站 HTTP 部分
