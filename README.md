@@ -1,0 +1,64 @@
+# Wyckoff Radar MVP
+
+独立的 Wyckoff 雷达原型工作区，使用 Vite + React 构建。
+
+当前目标是先完成 Sprint 1 的最小可交付物：
+
+- 监控矩阵
+- Phase / Signal 过滤
+- 风险收益展示
+- 人工预警确认
+- 文档和测试用例先行
+
+## 项目定位
+
+这个项目独立于现有聊天项目，只承载 Wyckoff Radar MVP 的前端原型与后续迭代。
+
+Sprint 1 明确不包含：
+
+- ptrade / QMT 接入
+- 实时行情
+- 自动下单
+- 持久化后端
+
+## 文档
+
+- [docs/wyckoff-mvp/PRD.md](docs/wyckoff-mvp/PRD.md)
+- [docs/wyckoff-mvp/IMPLEMENTATION-PATH.md](docs/wyckoff-mvp/IMPLEMENTATION-PATH.md)
+- [docs/wyckoff-mvp/SPRINTS.md](docs/wyckoff-mvp/SPRINTS.md)
+- [docs/wyckoff-mvp/MVP.md](docs/wyckoff-mvp/MVP.md)
+- [docs/wyckoff-mvp/TEST-CASES.md](docs/wyckoff-mvp/TEST-CASES.md)
+- [AGENTS.md](AGENTS.md)
+
+## 本地运行
+
+### 1. 安装依赖
+
+```bash
+npm install
+```
+
+### 2. 启动开发环境
+
+```bash
+npm run dev
+```
+
+默认访问地址：
+
+```bash
+http://localhost:5173
+```
+
+### 3. 构建验证
+
+```bash
+npm run build
+```
+
+## 可用脚本
+
+- `npm run dev`: 启动 Vite 开发服务器
+- `npm run build`: 构建生产产物
+- `npm run lint`: 运行 ESLint
+- `npm run preview`: 本地预览构建结果
