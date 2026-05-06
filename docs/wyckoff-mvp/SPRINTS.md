@@ -1,99 +1,99 @@
-# Wyckoff Dashboard Sprint Plan
+# Wyckoff 控制台冲刺路线图
 
-## Delivery Strategy
+## 交付策略
 
-The product will be delivered as thin vertical slices. Each sprint must produce a user-visible artifact, supporting documentation, and a bounded test surface.
+产品将按薄切片方式迭代交付。每个冲刺都必须产出用户可见的成果、配套文档，以及清晰边界内的测试面。
 
-## Sprint 1: Radar MVP
+## 冲刺 1：雷达 MVP
 
-Goal: ship a usable monitoring dashboard that makes the strategy state visible without depending on live broker or market integrations.
+目标：先交付一个可用的监控控制台，让策略状态能够被看见，而不依赖真实券商或市场数据集成。
 
-Deliverables:
+交付物：
 
-- Interactive dashboard page in the Vite app
-- Watchlist matrix with phase, support/resistance, current price, and risk/reward status
-- Alert stream with basic acknowledgement flow
-- Top-level metric cards derived from the watchlist state
-- Product spec and acceptance test cases in `docs/wyckoff-mvp`
+- Vite 应用中的交互式控制台页面
+- 展示阶段、支撑 / 阻力、现价和风险收益状态的监控矩阵
+- 带基础确认流程的预警流
+- 基于监控列表状态派生的顶部指标卡片
+- 位于 `docs/wyckoff-mvp` 的产品规格与验收测试用例
 
-Out of scope:
+不在范围内：
 
-- Real ptrade data feeds
-- Order execution
-- Authentication and permissions
-- Persistence beyond in-memory seeded state
+- 真实 ptrade 数据接入
+- 下单执行
+- 认证与权限
+- 超出内存种子状态以外的持久化
 
-Exit criteria:
+完成标准：
 
-- The MVP page renders as the default app entry
-- The watchlist and alert panels are understandable without external explanation
-- The UI clearly distinguishes actionable, monitoring, and rejected candidates
-- `npm run build` passes
+- MVP 页面作为默认入口成功渲染
+- 监控矩阵和预警面板无需额外说明即可理解
+- UI 能清晰区分可复核、待验证和被拦截的候选标的
+- `npm run build` 通过
 
-## Sprint 2: Stateful Monitoring
+## 冲刺 2：状态化监控
 
-Goal: move from seeded data to strategy-shaped state and user operations.
+目标：从种子数据迈向更接近策略状态的数据模型与用户操作。
 
-Deliverables:
+交付物：
 
-- Front-end data contract for `watchlist`, `alerts`, and `system status`
-- Repository-level mock API fixtures or local JSON feeds
-- Filter bar for phase, signal status, and risk gating
-- Symbol detail drawer or panel with state transition timeline
-- Persistence for UI interactions such as alert acknowledgement and watchlist filters
+- 面向 `watchlist`、`alerts` 和 `system status` 的前端数据契约
+- 仓库级的 mock API 模拟数据或本地 JSON 数据源
+- 阶段、信号状态和风险门槛过滤栏
+- 带状态变化时间线的标的详情抽屉或面板
+- 对过滤条件、预警确认等 UI 交互的持久化支持
 
-Exit criteria:
+完成标准：
 
-- MVP no longer depends on hard-coded component-local state only
-- Dashboard is navigable for 20-50 symbols without losing clarity
-- Test cases expanded to cover filtering and detail inspection
+- MVP 不再只依赖组件内硬编码状态
+- 控制台在 20 到 50 个标的范围内仍可清晰操作
+- 测试用例扩展到过滤与详情检查行为
 
-## Sprint 3: Strategy Services Integration
+## 冲刺 3：策略服务接入
 
-Goal: connect the UI to strategy services before connecting to execution.
+目标：先把 UI 接到策略服务，再考虑接执行链路。
 
-Deliverables:
+交付物：
 
-- Back-end endpoints for watchlist snapshot, alert feed, and system health
-- Strategy state adapter format aligned to Wyckoff FSM entities
-- Polling or streaming update mechanism for dashboard refresh
-- Structured audit log view for state transitions and signal rejection reasons
+- `watchlist snapshot`、预警流和系统健康状态接口
+- 对齐 Wyckoff FSM 实体的策略状态适配格式
+- 用于页面刷新的轮询或流式更新机制
+- 用于解释状态变化与信号拦截原因的结构化审计日志视图
 
-Exit criteria:
+完成标准：
 
-- UI reflects back-end state updates without reload
-- Audit entries explain why a symbol advanced, stalled, or was rejected
-- Error and degraded-mode states are visible in the UI
+- UI 无需刷新页面即可反映后端状态更新
+- 审计记录能解释标的为何推进、停滞或被拦截
+- 错误与降级状态在界面中明确可见
 
-## Sprint 4: Execution Readiness
+## 冲刺 4：执行准备
 
-Goal: prepare the product for semi-automated or automated trading workflows.
+目标：为半自动或自动交易工作流做产品与工程准备。
 
-Deliverables:
+交付物：
 
-- Position and order lifecycle panels
-- Pre-trade validation display with hard stop, target, and risk/reward gates
-- Manual approval actions for trade recommendations
-- Integration hooks for ptrade or QMT execution adapters
+- 持仓与订单生命周期面板
+- 展示硬止损、目标位和风险收益门槛的交易前校验视图
+- 针对交易建议的人工批准动作
+- 面向 ptrade 或 QMT 执行适配层的集成挂点
 
-Exit criteria:
+完成标准：
 
-- Users can see recommended trades, approval state, and execution feedback in one place
-- Risk vetoes are first-class UI objects, not hidden logs
-- Rollout can start in simulation mode before live trading
+- 用户能在同一界面看到交易建议、审批状态与执行反馈
+- 风险拦截以一等 UI 对象存在，而不是隐藏在日志中
+- 可以先在模拟模式下开始验证，再逐步接近实盘
 
-## Module-to-Sprint Mapping
+## 模块与冲刺映射
 
-| Module | Sprint 1 | Sprint 2 | Sprint 3 | Sprint 4 |
+| 模块 | 冲刺 1 | 冲刺 2 | 冲刺 3 | 冲刺 4 |
 | --- | --- | --- | --- | --- |
-| Macro Filter & Watchlist | visual only | contract + filters | live service | mature |
-| Wyckoff FSM Brain | static states | timeline/detail view | live state adapter | mature |
-| L2 Snapshot Validator | placeholder status | placeholder details | partial integration | live integration |
-| P&F Risk/Reward Engine | visible outputs | inspectable rules | service-backed | mature |
-| Execution Trigger & Orders | none | none | pre-trade display | approval + execution |
+| 宏观过滤与监控列表 | 仅做可视化 | 契约 + 过滤 | 接入服务 | 成熟化 |
+| Wyckoff FSM 引擎 | 静态状态 | 时间线 / 详情视图 | 实时状态适配 | 成熟化 |
+| L2 快照验证器 | 占位状态 | 占位详情 | 部分集成 | 实时集成 |
+| P&F 风险收益引擎 | 展示输出 | 规则可检查 | 服务化 | 成熟化 |
+| 执行触发与订单 | 无 | 无 | 交易前展示 | 审批 + 执行 |
 
-## Risks
+## 风险
 
-- The strategy language is richer than the first sprint data model; avoid pretending Sprint 1 is execution-ready.
-- A visually strong dashboard can obscure missing service contracts; Sprint 2 must tighten the data model.
-- L2 validation is the strategic edge and the most difficult component; do not allow it to block Sprint 1.
+- 策略语言远比冲刺 1 当前的数据模型复杂，不能误导为“接近实盘”。
+- 过强的视觉呈现容易掩盖服务契约缺失，冲刺 2 必须先收紧数据模型。
+- L2 验证是策略优势所在，也是最难的模块，不应阻塞冲刺 1 交付。

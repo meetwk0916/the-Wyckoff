@@ -1,125 +1,125 @@
-# Wyckoff Dashboard Test Cases
+# Wyckoff 控制台测试用例
 
-## Test Strategy
+## 测试策略
 
-The current set covers Sprint 1 behavior plus the first Sprint 2 inspection slice. Automated coverage can be added later, but these cases define the required behavior now.
+当前这组用例覆盖了冲刺 1 的行为，以及冲刺 2 的第一个检查面切片。后续可以补自动化覆盖，但现在这份文档就是当前版本的行为基线。
 
-## Acceptance Cases
+## 验收用例
 
-### TC-001 Dashboard Render
+### TC-001 控制台渲染
 
-Precondition: dev server is running.
+前置条件：开发服务已经启动。
 
-Steps:
+步骤：
 
-1. Open the app root.
-2. Observe the page shell and content.
+1. 打开应用根路径。
+2. 查看页面骨架和主要内容。
 
-Expected:
+预期：
 
-- Wyckoff MVP dashboard is shown.
-- The page includes metric cards, watchlist matrix, alert stream, and MVP scope notes.
+- Wyckoff MVP 控制台正确显示。
+- 页面包含指标卡片、监控矩阵、预警流和 MVP 范围说明。
 
-### TC-002 Phase Filter
+### TC-002 阶段过滤
 
-Precondition: dashboard is open.
+前置条件：控制台已打开。
 
-Steps:
+步骤：
 
-1. Change the phase filter to `Phase D`.
-2. Observe the table.
-3. Reset the filter to `All phases`.
+1. 将阶段过滤切换到 `Phase D`。
+2. 查看表格内容。
+3. 再切回 `All phases`。
 
-Expected:
+预期：
 
-- Only `Phase D` rows remain while the filter is active.
-- Reset restores the full table.
+- 过滤生效时，只显示 `Phase D` 行。
+- 重置后恢复完整列表。
 
-### TC-003 Status Filter
+### TC-003 状态过滤
 
-Precondition: dashboard is open.
+前置条件：控制台已打开。
 
-Steps:
+步骤：
 
-1. Change the signal filter to actionable candidates.
-2. Observe the table.
+1. 将信号过滤切换到可复核候选。
+2. 查看表格内容。
 
-Expected:
+预期：
 
-- Only actionable rows remain.
-- Risk-blocked and monitoring-only rows are excluded.
+- 只保留可复核行。
+- 被拦截和仅监控的行被排除。
 
-### TC-004 Alert Acknowledgement
+### TC-004 预警确认
 
-Precondition: dashboard is open and at least one unacknowledged alert exists.
+前置条件：控制台已打开，且至少存在一条未确认预警。
 
-Steps:
+步骤：
 
-1. Click the acknowledgement action on an alert.
+1. 点击某条预警的确认动作。
 
-Expected:
+预期：
 
-- The alert changes to acknowledged state.
-- The action no longer appears available for the same alert.
+- 该预警切换为已确认状态。
+- 同一条预警不再出现可点击的确认动作。
 
-### TC-005 Metric Consistency
+### TC-005 指标一致性
 
-Precondition: dashboard is open.
+前置条件：控制台已打开。
 
-Steps:
+步骤：
 
-1. Count actionable rows in the current filtered state.
-2. Compare with the summary metric.
+1. 统计当前过滤结果中的可复核行数。
+2. 与顶部汇总指标进行比对。
 
-Expected:
+预期：
 
-- Summary metrics align with the visible state model.
+- 汇总指标与当前可见状态一致。
 
-### TC-006 Simulated Refresh
+### TC-006 模拟刷新
 
-Precondition: dashboard is open.
+前置条件：控制台已打开。
 
-Steps:
+步骤：
 
-1. Trigger the refresh action.
+1. 触发刷新动作。
 
-Expected:
+预期：
 
-- The last-updated timestamp changes.
-- No page crash occurs.
+- 最后更新时间戳发生变化。
+- 页面不会崩溃。
 
-### TC-007 Symbol Inspection Panel
+### TC-007 标的检查面板
 
-Precondition: dashboard is open.
+前置条件：控制台已打开。
 
-Steps:
+步骤：
 
-1. Click a visible symbol row in the watchlist matrix.
-2. Observe the inspection panel on the right side.
-3. Change the filters so another symbol becomes the primary visible candidate.
+1. 点击监控矩阵中的某个可见标的。
+2. 查看右侧检查面板。
+3. 再调整过滤条件，使另一个标的成为当前主要可见候选。
 
-Expected:
+预期：
 
-- The inspection panel switches to the selected symbol.
-- The panel shows thesis, entry zone, stop, confidence, and state timeline.
-- If the selected symbol is filtered out, the panel falls back to the next visible candidate.
+- 检查面板切换到当前选中标的。
+- 面板展示判断依据、入场区间、止损、信心分数和状态时间线。
+- 如果当前选中标的被过滤掉，面板自动回退到下一个可见候选。
 
-### TC-008 MVP Scope Guardrail
+### TC-008 MVP 范围保护
 
-Precondition: dashboard is open.
+前置条件：控制台已打开。
 
-Steps:
+步骤：
 
-1. Review the delivery notes or scope section.
+1. 查看页面中的交付说明或范围说明区域。
 
-Expected:
+预期：
 
-- The UI clearly says this is a monitoring MVP.
-- It explicitly marks live ptrade integration and auto-trading as deferred.
+- UI 明确说明当前只是监控型 MVP。
+- UI 明确标注实时 ptrade 接入和自动交易仍然延期。
 
-## Regression Checks for Each Future Sprint
+## 后续每轮迭代的回归检查
 
-- App root still renders the dashboard.
-- Build succeeds with `npm run build`.
-- Symbol inspection stays synchronized with the current watchlist selection.
-- New filters or panels do not hide risk veto information.
+- 应用根路径仍然渲染控制台。
+- `npm run build` 仍然通过。
+- 标的检查面板始终与当前监控列表选择保持同步。
+- 新增过滤器或面板时，不得隐藏风险拦截信息。

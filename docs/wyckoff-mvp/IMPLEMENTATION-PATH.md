@@ -1,134 +1,204 @@
-# Wyckoff Radar Implementation Path
+# Wyckoff Radar 实施路径
 
-## 1. 当前状态
+## 路线图使用说明
 
-项目当前是一个独立的 Vite + React 前端工作区，已经完成：
+本文按路线图阶段排开，并在每个阶段下用勾选清单标记当前状态：
 
-- 单页 Dashboard
-- Watchlist / Alerts / Metrics 展示
-- 过滤与 session 持久化
-- Selected symbol inspection panel
-- 本地 contract fixture 抽离到 `src/data/wyckoffMockData.js`
-- 手工验收文档与 Sprint 规划
+- `已完成功能`: 当前仓库已经落地并可用的内容
+- `待完善功能`: 已经起步，但还需要继续工程化或解耦的内容
+- `待实现功能`: 仍未开始，属于后续迭代范围的内容
 
-当前不是生产系统，也不依赖任何后端。
+当前项目是独立的 Vite + React 前端工作区，不是生产系统，也不依赖任何后端。
 
-## 2. 当前代码结构
+## 阶段 0：仓库基线与交接材料
 
-- `src/App.jsx`: 当前主页面容器与 UI 行为
-- `src/data/wyckoffMockData.js`: watchlist / alerts / system status contract fixture
-- `src/app.css`: 当前界面样式
-- `docs/wyckoff-mvp/PRD.md`: 产品需求文档
-- `docs/wyckoff-mvp/MVP.md`: MVP 边界
-- `docs/wyckoff-mvp/SPRINTS.md`: Sprint 路线图
-- `docs/wyckoff-mvp/TEST-CASES.md`: 验收与回归检查
+目标：保证项目已独立建仓、可编译、可交接，后续智能体进入后不需要重新整理上下文。
 
-## 3. 推荐实施顺序
+### 已完成功能
 
-### 阶段 1：稳定数据边界
+- [x] 独立工作区已创建，并与聊天项目解耦
+- [x] Git 仓库已初始化并推送到 GitHub
+- [x] `README.md` 已提供项目定位、运行方式和文档入口
+- [x] `AGENTS.md` 已提供后续智能体的进入顺序与工作规则
+- [x] `docs/wyckoff-mvp/PRD.md` 已落地
+- [x] `docs/wyckoff-mvp/MVP.md` 已落地
+- [x] `docs/wyckoff-mvp/SPRINTS.md` 已落地
+- [x] `docs/wyckoff-mvp/TEST-CASES.md` 已落地
+- [x] `docs/wyckoff-mvp/IMPLEMENTATION-PATH.md` 已落地
+
+### 待完善功能
+
+- [ ] 在 README 中增加更明确的“当前版本状态”摘要，减少首次阅读成本
+- [ ] 为后续智能体增加更细的目录约定，例如组件目录和数据访问目录的命名建议
+
+### 待实现功能
+
+- [ ] 建立面向外部协作的 issue / milestone 约定
+- [ ] 建立统一的提交与 PR 模板
+
+## 阶段 1：冲刺 1 MVP 可视化工作台
+
+目标：把 Wyckoff 候选标的和人工复核流程先做成可见、可筛选、可解释的控制台。
+
+### 已完成功能
+
+- [x] 单页控制台已作为默认入口渲染
+- [x] 监控矩阵已展示阶段、支撑 / 阻力、价格、量能、风险收益、目标位和状态
+- [x] 预警流已展示时间、类型、标的与摘要
+- [x] 顶部指标卡片已由当前过滤后的监控列表派生
+- [x] 阶段过滤已实现
+- [x] 信号状态过滤已实现
+- [x] 预警确认已实现会话内持久化
+- [x] 选中标的检查面板已实现
+- [x] 检查面板已展示判断依据、入场区间、止损、信心分数和时间线
+- [x] 当前版本已明确标注不接实时行情、ptrade 与自动下单
+
+### 待完善功能
+
+- [ ] 进一步提升检查面板的结构表达，让风险拦截原因更清晰
+- [ ] 为当前页面增加更明显的“当前选中标的”导航反馈
+- [ ] 让刷新动作从纯时间戳刷新，演进为真正的数据刷新入口
+
+### 待实现功能
+
+- [ ] 增加更系统化的系统状态面板，而不是只显示顶部状态 pill
+- [ ] 增加更完整的候选排序逻辑，例如按优先级或置信度排序
+- [ ] 增加空状态、降级状态和异常状态的专门界面
+
+## 阶段 2：数据边界稳定化
 
 目标：把前端从“直接依赖 JS 常量”推进到“依赖可替换的数据源”。
 
-建议任务：
+### 已完成功能
 
-1. 把 fixture 下沉为 `public/mock/` JSON 或本地 mock API。
-2. 在 `src` 中新增 data access 层，例如 `src/lib/contracts.js` 或 `src/lib/loadDashboardSnapshot.js`。
-3. 保持 UI 对 contract 的消费接口稳定，不让组件知道数据来自本地还是远端。
+- [x] `watchlist`、`alerts`、`system status` 模拟数据已从页面组件抽离到 `src/data/wyckoffMockData.js`
+- [x] 当前数据契约已形成可直接替换的集中入口
 
-完成标准：
+### 待完善功能
 
-- `App.jsx` 不再直接 import 大块 fixture 常量。
-- watchlist / alerts / system status 可以整体替换。
+- [ ] 把模拟数据下沉为 `public/mock/` JSON 或本地 mock API
+- [ ] 新增数据访问层，例如 `src/lib/contracts.js` 或 `src/lib/loadDashboardSnapshot.js`
+- [ ] 让 `App.jsx` 不再直接导入大块模拟数据常量
+- [ ] 保持 UI 对数据契约的消费接口稳定，不让组件知道数据来自本地还是远端
 
-### 阶段 2：自动化验证
+### 待实现功能
 
-目标：避免每次 agent 改动都靠人工点页面回归。
+- [ ] 定义异步加载 `watchlist snapshot` 的正式接口
+- [ ] 定义 `alerts` 与 `system status` 的独立加载边界
+- [ ] 为数据读取失败、超时、部分缺失建立统一的状态模型
 
-建议任务：
+## 阶段 3：自动化验证
 
-1. 引入 Vitest + Testing Library。
-2. 为以下行为补测试：
-   - phase filter
-   - status filter
-   - alert acknowledgement
-   - selected symbol inspection fallback
-3. 保留现有 `TEST-CASES.md` 作为人工回归基线。
+目标：避免每次智能体改动都靠人工点页面回归。
 
-完成标准：
+### 已完成功能
 
-- 至少覆盖当前 Dashboard 的关键交互路径。
-- `npm run test` 可作为后续 agent 的第一道回归门。
+- [x] 手工验收与回归基线已记录在 `TEST-CASES.md`
+- [x] 当前版本已能通过 `npm run lint`
+- [x] 当前版本已能通过 `npm run build`
 
-### 阶段 3：组件解耦
+### 待完善功能
+
+- [ ] 引入 Vitest + Testing Library
+- [ ] 为阶段过滤补自动化测试
+- [ ] 为状态过滤补自动化测试
+- [ ] 为预警确认补自动化测试
+- [ ] 为选中标的检查回退补自动化测试
+
+### 待实现功能
+
+- [ ] 提供 `npm run test` 脚本作为后续智能体的第一道回归门
+- [ ] 将关键交互测试接入持续集成
+- [ ] 为文档中定义的测试用例建立自动化映射关系
+
+## 阶段 4：组件解耦与前端结构治理
 
 目标：把 `App.jsx` 从页面总装函数拆成更清晰的领域组件。
 
-建议任务：
+### 已完成功能
 
-1. 抽出 `DashboardHeader`
-2. 抽出 `WatchlistTable`
-3. 抽出 `InspectionPanel`
-4. 抽出 `AlertStream`
-5. 抽出 `ScopeNotes`
+- [x] 当前数据契约已初步脱离 UI 组件顶部常量，具备继续拆分条件
 
-完成标准：
+### 待完善功能
 
-- 页面逻辑与展示逻辑分离。
-- 组件 props 以 contract 为中心，而不是依赖全局常量。
+- [ ] 抽出 `DashboardHeader`
+- [ ] 抽出 `WatchlistTable`
+- [ ] 抽出 `InspectionPanel`
+- [ ] 抽出 `AlertStream`
+- [ ] 抽出 `ScopeNotes`
 
-### 阶段 4：接入本地服务接口
+### 待实现功能
+
+- [ ] 页面逻辑与展示逻辑完全分离
+- [ ] 组件参数全面以数据契约为中心，而不是依赖全局常量
+- [ ] 建立统一的前端目录结构，例如 `components/`, `features/`, `lib/`
+
+## 阶段 5：本地服务接口与异步状态
 
 目标：为未来策略服务接入打桩，而不是直接碰实盘。
 
-建议任务：
+### 已完成功能
 
-1. 提供 `/api/dashboard-snapshot` 或等价 mock endpoint。
-2. 提供 `/api/alerts` 或同类接口。
-3. 提供 `system status` 的健康状态返回。
-4. 页面端改为加载异步数据并处理 loading/error/degraded 状态。
+- [x] 当前界面已经有系统状态与刷新入口的位置预留
 
-完成标准：
+### 待完善功能
 
-- UI 可以在不 reload 的情况下处理数据刷新。
-- 失败状态对用户可见，而不是静默失败。
+- [ ] 提供 `/api/dashboard-snapshot` 或等价模拟接口
+- [ ] 提供 `/api/alerts` 或同类接口
+- [ ] 提供 `system status` 的健康状态返回
+- [ ] 页面端改为加载异步数据并处理加载中 / 错误 / 降级状态
 
-### 阶段 5：策略语义增强
+### 待实现功能
+
+- [ ] UI 在不重载页面的情况下处理数据刷新
+- [ ] 错误状态对用户可见，而不是静默失败
+- [ ] 后端数据契约与前端数据契约建立稳定版本边界
+
+## 阶段 6：策略语义增强
 
 目标：逐步把“结构展示”推进到“策略检查工作台”。
 
-建议任务：
+### 已完成功能
 
-1. 引入更明确的 phase transition timeline。
-2. 展示风险 veto 原因对象化结果。
-3. 为 L2 验证状态预留更细粒度字段。
-4. 增加 symbol-level audit notes。
+- [x] 检查面板已具备基础时间线和判断依据展示能力
+- [x] 当前页面已能区分可复核、监控中、被拦截、构建中四类状态
 
-完成标准：
+### 待完善功能
 
-- inspection panel 不只是展示数字，而是能解释状态变化与阻断原因。
+- [ ] 引入更明确的阶段切换时间线
+- [ ] 展示风险拦截原因的对象化结果
+- [ ] 为 L2 验证状态预留更细粒度字段
+- [ ] 增加标的级审计备注
 
-## 4. 当前最优下一步
+### 待实现功能
 
-如果只选一个切口，优先做：
+- [ ] 检查面板从“展示数字”演进到“解释状态变化与阻断原因”
+- [ ] 增加更贴近策略语言的检查对象，例如 spring 质量、BUEC 复核、板块共振
+- [ ] 建立可追踪的状态转换审计视图
 
-1. 本地 JSON / mock API 化 fixture
-2. 自动化测试
+## 当前最优下一步
+
+优先顺序建议如下：
+
+1. 数据边界稳定化
+2. 自动化验证
+3. 组件解耦
 
 原因：
 
-- 这两步能显著提高后续 agent 接手的稳定性。
+- 这三步能显著提高后续智能体接手的稳定性。
 - 先碰数据边界和测试，比先大拆组件更不容易返工。
 
-## 5. 变更原则
+## 变更原则
 
-- 不要把新的业务字段重新塞回 `App.jsx` 顶部常量。
-- 不要在没有 contract 的情况下直接为远端接口写死字段名。
-- 不要把“监控原型”误包装成“可执行交易产品”。
-- 每次新增交互，都要同步更新 `TEST-CASES.md`。
+- [x] 不要把新的业务字段重新塞回 `App.jsx` 顶部常量
+- [x] 不要在没有数据契约的情况下直接为远端接口写死字段名
+- [x] 不要把“监控原型”误包装成“可执行交易产品”
+- [x] 每次新增交互，都要同步更新 `TEST-CASES.md`
 
-## 6. 后续 Agent 进入方式
+## 后续智能体进入方式
 
-建议任何接手 agent 先按这个顺序读取：
+建议任何接手的智能体先按这个顺序读取：
 
 1. `README.md`
 2. `AGENTS.md`
@@ -138,9 +208,9 @@
 6. `src/data/wyckoffMockData.js`
 7. `src/App.jsx`
 
-## 7. 发布前最低检查
+## 当前发布前最低检查
 
-- `npm run lint`
-- `npm run build`
-- 文档链接有效
-- README 中能找到 PRD 与实施路径
+- [x] `npm run lint`
+- [x] `npm run build`
+- [x] 文档链接有效
+- [x] README 中能找到 PRD 与实施路径

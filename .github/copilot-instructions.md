@@ -1,31 +1,31 @@
-- [x] Verify that the copilot-instructions.md file in the .github directory is created.
-	Summary: Created `.github/copilot-instructions.md` in the new workspace root.
+- [x] 已创建 `.github/copilot-instructions.md` 文件。
+	摘要: 已在新工作区根目录创建 `.github/copilot-instructions.md`。
 
 
-- [x] Clarify Project Requirements
-	Summary: Confirmed a standalone Vite + React JavaScript workspace for Wyckoff Radar MVP, independent from the existing chat project.
+- [x] 已明确项目需求
+	摘要: 已确认这是一个独立于现有聊天项目的 Vite + React JavaScript 工作区，用于承载 Wyckoff Radar MVP。
 
-- [x] Scaffold the Project
-	Summary: Scaffolded a standalone Vite React workspace in the current directory and preserved the existing `.github` folder.
+- [x] 已完成项目脚手架
+	摘要: 已在当前目录完成独立 Vite React 工作区脚手架，并保留现有 `.github` 目录。
 
-- [x] Customize the Project
-	Summary: Replaced the default template with the Wyckoff Radar MVP dashboard and added Sprint 1 docs and test cases.
+- [x] 已完成项目定制
+	摘要: 已用 Wyckoff Radar MVP 控制台替换默认模板，并补充冲刺 1 文档与测试用例。
 
-- [x] Install Required Extensions
-	Summary: No extensions needed; project setup information did not require any.
+- [x] 已确认扩展安装情况
+	摘要: 当前不需要额外扩展；项目初始化信息未要求安装任何扩展。
 
-- [x] Compile the Project
-	Summary: Installed dependencies, then validated the workspace with `npm run build` and `npm run lint`.
+- [x] 已完成编译验证
+	摘要: 已安装依赖，并通过 `npm run build` 与 `npm run lint` 验证工作区。
 
-- [x] Create and Run Task
-	Summary: No dedicated VS Code task added; the workspace already has clear `npm` scripts documented in `README.md`.
+- [x] 已确认任务配置
+	摘要: 未额外创建 VS Code 任务；`README.md` 中已经给出清晰的 `npm` 脚本说明。
 
-- [x] Launch the Project
-	Summary: Started the Vite development server in standard dev mode after user confirmation.
+- [x] 已完成项目启动
+	摘要: 在用户确认后，已使用标准 Vite 开发模式启动项目。
 
-- [x] Ensure Documentation is Complete
-	Summary: Updated `README.md`, retained the project checklist, and removed setup comments from this file.
+- [x] 已确认文档完整
+	摘要: 已更新 `README.md`，保留项目清单，并移除本文件中的模板注释。
 
-- Work through each checklist item systematically.
-- Keep communication concise and focused.
-- Follow development best practices.
+- 按清单逐项推进。
+- 沟通保持简洁、聚焦。
+- 遵循开发最佳实践。

@@ -1,37 +1,37 @@
-# Sprint 1 MVP Spec
+# 冲刺 1 MVP 规格说明
 
-## Objective
+## 目标
 
-Create the smallest useful front-end artifact that proves the product shape for the Wyckoff radar workflow.
+创建一个最小但有用的前端交付物，用来验证 Wyckoff 雷达工作流的产品形态。
 
-The MVP is successful if a stakeholder can open the page and answer these questions quickly:
+如果相关干系人打开页面后，能快速回答下面几个问题，就说明这个 MVP 是成功的：
 
-1. Which symbols are being monitored?
-2. Which symbols are close to action?
-3. Which symbols are blocked by risk/reward or incomplete confirmation?
-4. What signals need human attention right now?
+1. 当前在监控哪些标的？
+2. 哪些标的接近可操作状态？
+3. 哪些标的被风险收益或确认缺失阻断？
+4. 当前有哪些信号值得人工重点关注？
 
-## Users
+## 用户
 
-- Strategy owner validating the product direction
-- Research or trading operator reviewing candidate symbols
-- Engineer aligning future back-end contracts to visible UI objects
+- 用于验证产品方向的策略负责人
+- 用于查看候选标的的研究或交易操作员
+- 用于对齐未来后端契约的工程人员
 
-## Included Scope
+## 包含范围
 
-### Screen Structure
+### 界面结构
 
-- Header with product identity, sprint badge, and simulated system status
-- Metric cards summarizing monitoring load and candidate quality
-- Watchlist matrix listing symbol, phase, support/resistance, price/volume, and risk/reward
-- Alert stream showing signal type, time, summary, and acknowledgement action
-- Delivery notes panel that makes the Sprint 1 limits explicit
+- 包含产品标识、冲刺标记和模拟系统状态的页头
+- 汇总监控负载与候选质量的指标卡片
+- 展示标的、阶段、支撑 / 阻力、价格 / 量能和风险收益的监控矩阵
+- 展示信号类型、时间、摘要和确认动作的预警流
+- 明确标出冲刺 1 边界的说明面板
 
-### State Model
+### 状态模型
 
-The page will use seeded data that mimics the future service contract.
+页面使用本地种子数据来模拟未来服务契约。
 
-Required watchlist fields:
+监控列表必需字段：
 
 - `symbol`
 - `name`
@@ -45,7 +45,7 @@ Required watchlist fields:
 - `targetPrice`
 - `status`
 
-Required alert fields:
+预警必需字段：
 
 - `id`
 - `time`
@@ -54,48 +54,48 @@ Required alert fields:
 - `message`
 - `acknowledged`
 
-### User Interactions
+### 用户交互
 
-- Filter by phase
-- Filter by signal state
-- Acknowledge an alert
-- Simulate dashboard refresh timestamp
+- 按阶段过滤
+- 按信号状态过滤
+- 确认一条预警
+- 模拟控制台刷新时间戳
 
-## Explicitly Excluded
+## 明确排除范围
 
-- Login
-- Real market data
-- Broker connectivity
-- Back-end storage
-- Live notification delivery
-- Automated testing harness beyond documented acceptance cases
+- 登录
+- 实时市场数据
+- 券商连接
+- 后端存储
+- 实时通知分发
+- 超出文档化验收用例范围的自动化测试框架
 
-## Acceptance Criteria
+## 验收标准
 
-### AC-1 Page Access
+### AC-1 页面访问
 
-- Opening the app shows the dashboard.
+- 打开应用后，默认显示控制台页面。
 
-### AC-2 Watchlist Comprehension
+### AC-2 监控矩阵可理解性
 
-- Each row exposes enough information to understand phase, structure, and gating.
-- Actionable symbols are visually distinct from monitoring-only and rejected symbols.
+- 每一行都提供足够的信息，用于理解阶段、结构和阻断条件。
+- 可复核标的必须能与仅监控和被拦截标的清晰区分。
 
-### AC-3 Alert Workflow
+### AC-3 预警工作流
 
-- Alert cards can be acknowledged.
-- Acknowledged state persists within the current session view.
+- 预警卡片可以被确认。
+- 已确认状态在当前会话视图中保持。
 
-### AC-4 Derived Metrics
+### AC-4 派生指标
 
-- Metric cards reflect the seeded watchlist state rather than fixed decorative numbers.
+- 指标卡片必须反映种子监控列表状态，而不是写死的装饰数字。
 
-### AC-5 Sprint Transparency
+### AC-5 冲刺边界透明化
 
-- The page clearly states that ptrade, live data, and execution are not yet wired.
+- 页面必须明确说明当前尚未接入 ptrade、实时行情和执行链路。
 
-## Engineering Notes
+## 工程说明
 
-- Sprint 1 stays single-page and front-end only.
-- Reuse existing React and `lucide-react` dependencies.
-- Keep the seeded state isolated so it can be replaced by service data in Sprint 2.
+- 冲刺 1 保持单页、纯前端实现。
+- 复用现有 React 和 `lucide-react` 依赖。
+- 保持种子状态隔离，便于在冲刺 2 中替换为服务数据。

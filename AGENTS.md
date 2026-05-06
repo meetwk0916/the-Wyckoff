@@ -1,12 +1,12 @@
 # AGENTS
 
-## Project Intent
+## 项目意图
 
-This repository is an independent Wyckoff Radar MVP workspace. It is not the chat project and it is not a live trading system.
+这个仓库是一个独立的 Wyckoff Radar MVP 工作区。它不是聊天项目，也不是实盘交易系统。
 
-The current product purpose is to turn Wyckoff strategy monitoring into a visible operator console before any real data or execution integration is attempted.
+当前产品目标是先把 Wyckoff 策略监控流程做成可见的操作台，再逐步接入真实数据与执行链路。
 
-## Read First
+## 优先阅读
 
 1. `README.md`
 2. `docs/wyckoff-mvp/PRD.md`
@@ -14,31 +14,31 @@ The current product purpose is to turn Wyckoff strategy monitoring into a visibl
 4. `docs/wyckoff-mvp/MVP.md`
 5. `docs/wyckoff-mvp/TEST-CASES.md`
 
-## Current State
+## 当前状态
 
-- Vite + React single-page dashboard
-- Watchlist, filters, alerts, metrics, inspection panel
-- Seeded dashboard contract in `src/data/wyckoffMockData.js`
-- No backend and no broker integration
-- Manual acceptance cases are documented
+- 基于 Vite + React 的单页控制台
+- 已包含监控列表、过滤器、预警流、指标卡片、检查面板
+- 仪表盘数据契约位于 `src/data/wyckoffMockData.js`
+- 当前没有后端，也没有券商接入
+- 手工验收用例已整理完毕
 
-## Commands
+## 常用命令
 
 - `npm install`
 - `npm run dev`
 - `npm run lint`
 - `npm run build`
 
-## Working Rules
+## 工作规则
 
-- Keep the project independent from any other workspace.
-- Do not position the product as execution-ready.
-- Prefer extracting contract and data-access layers over growing `src/App.jsx` further.
-- Update `docs/wyckoff-mvp/TEST-CASES.md` when UI behavior changes.
-- Run `npm run lint` and `npm run build` after substantive edits.
+- 保持项目独立，不与其他工作区混用。
+- 不要把当前产品表述成可直接执行交易的系统。
+- 优先继续抽离数据契约和数据访问层，而不是继续膨胀 `src/App.jsx`。
+- 只要 UI 行为变化，就同步更新 `docs/wyckoff-mvp/TEST-CASES.md`。
+- 进行实质性改动后，运行 `npm run lint` 和 `npm run build`。
 
-## Recommended Next Tasks
+## 推荐下一步
 
-1. Replace JS fixture imports with local JSON or a mock API layer.
-2. Add automated UI tests for filters, alerts, and inspection selection.
-3. Split the page into smaller dashboard components once tests exist.
+1. 将 JS 模拟数据替换为本地 JSON 或 mock API 层。
+2. 为过滤、预警确认和标的选择补自动化 UI 测试。
+3. 在测试就位后，把页面拆成更小的控制台组件。

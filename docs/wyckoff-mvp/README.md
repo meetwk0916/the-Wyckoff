@@ -1,17 +1,17 @@
-# Wyckoff MVP Delivery Docs
+# Wyckoff MVP 交付文档说明
 
-This folder defines the delivery-first plan for the Wyckoff radar MVP.
+这个目录定义了 Wyckoff 雷达 MVP 的“文档先行”交付方案。
 
-Documents:
+文档包括：
 
-- `PRD.md`: product framing, target users, goals, and scope
-- `IMPLEMENTATION-PATH.md`: engineering execution order and recommended next slices
-- `SPRINTS.md`: sprint-by-sprint deliverables and exit criteria
-- `MVP.md`: Sprint 1 product and engineering scope
-- `TEST-CASES.md`: acceptance and regression cases for Sprint 1
+- `PRD.md`：产品背景、目标用户、目标和范围
+- `IMPLEMENTATION-PATH.md`：工程实施顺序与建议的下一步切口
+- `SPRINTS.md`：按冲刺划分的交付物与退出标准
+- `MVP.md`：冲刺 1 的产品与工程范围
+- `TEST-CASES.md`：冲刺 1 的验收与回归测试用例
 
-Principles:
+基本原则：
 
-- Documentation and test cases land before feature work.
-- Sprint 1 is a front-end-only MVP focused on visibility, not trading.
-- Real-time market data, ptrade integration, and auto-execution are explicitly deferred.
+- 功能开发前先落文档和测试用例。
+- 冲刺 1 是前端监控型 MVP，目标是可见性，不是交易执行。
+- 实时行情、ptrade 接入和自动执行明确延后。
