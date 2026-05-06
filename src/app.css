@@ -84,6 +84,8 @@ select {
 .wyckoff-hero-actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 12px;
 }
 
@@ -457,6 +459,44 @@ select {
   color: #eff6ff;
 }
 
+.wyckoff-depth-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.wyckoff-depth-list {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wyckoff-depth-list li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(159, 179, 204, 0.1);
+}
+
+.wyckoff-depth-list li:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.wyckoff-depth-list li strong {
+  color: #eff6ff;
+  font-size: 15px;
+}
+
+.wyckoff-depth-list li span {
+  color: #90a3bb;
+  font-size: 13px;
+}
+
 .wyckoff-alert-list {
   display: grid;
   gap: 12px;
@@ -551,6 +591,10 @@ select {
   }
 
   .wyckoff-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .wyckoff-depth-grid {
     grid-template-columns: 1fr;
   }
 

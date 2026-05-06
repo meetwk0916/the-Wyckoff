@@ -8,6 +8,33 @@
 
 因此，ptrade 对接按三个阶段推进，顺序不能倒置。
 
+## 当前仓库状态
+
+- 已落地本地 `ptrade bridge` 服务骨架
+- 已提供 L2 订单流样例接口和前端联调面板
+- 当前默认仍是 `mock` 模式，不代表真实 ptrade 已接通
+- 真实连接仍依赖外部 ptrade 上游 bridge 或等价服务
+
+## 官方文档确认后的推荐路径
+
+结合官方帮助中心、接口手册和支持库列表，当前更推荐的实现方式不是从 WSL 直接拉取 ptrade 数据，而是：
+
+1. 在 PTrade 交易环境内部运行一个最小 exporter / validation 策略。
+2. 用 `run_interval` 定时拉取 `get_snapshot()`、`get_individual_entrust(..., is_dict=True)`、`get_individual_transaction(..., is_dict=True)`。
+3. 在策略侧直接向外 `POST` 到 relay，或者先落本地文件再由 relay 读取。
+4. 当前仓库中的 Node bridge 继续作为统一契约层和前端上游，而不是直接承担官方运行时适配。
+
+这样做的原因是：
+
+- 官方文档没有提供适合外部系统直接调用的独立 OpenAPI。
+- 官方运行时已经支持 Python 3.11，并自带 `requests`、`Flask`、`FastAPI`、`uvicorn` 等库。
+- 官方文档明确说明 `tick_data` 中的 `tick` 数据来自 `get_snapshot()` 转换，如需更快应直接调用 `get_snapshot()`。
+
+当前仓库已补充最小验证脚本与说明：
+
+- `ptrade_phase1_validation.py`
+- `PTRADE-VALIDATION.md`
+
 ## Phase 1：L2 订单流接入
 
 当前定位：首要优先级。
@@ -38,6 +65,7 @@
 - 目标标的可以稳定采集 L2 订单流数据
 - 数据可以被统一结构消费，而不是直接耦合 ptrade 原始返回
 - 本地可以对采集结果做回放，用于 Wyckoff 结构与盘口验证
+- bridge 能明确区分“mock 联调就绪”和“真实 ptrade 已连接”两种状态
 
 ## Phase 2：其他 API 能力与回测
 

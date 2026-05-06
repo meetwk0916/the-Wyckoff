@@ -22,6 +22,7 @@
 - 基于 Vite + React 的单页控制台
 - 已包含监控列表、过滤器、预警流、指标卡片、检查面板
 - 仪表盘数据快照位于 `public/mock/wyckoff-dashboard.json`，通过 `src/lib/loadDashboardSnapshot.js` 接入
+- 已包含本地 `ptrade bridge`、L2 订单流样例接口和前端联调面板
 - 当前没有后端，也没有券商接入
 - 手工验收用例已整理完毕
 
@@ -42,6 +43,6 @@
 
 ## 推荐下一步
 
-1. 启动 ptrade Phase 1：打通 L2 订单流获取、标准化、录制与回放。
-2. 将本地 JSON 快照继续演进为 mock API 层，并拆分 `watchlist`、`alerts`、`system status` 的加载边界。
-3. 为过滤、预警确认和标的选择补自动化 UI 测试。
+1. 将本地 `ptrade bridge` 从 `mock` 模式切到真实上游连接，优先打通 L2 订单流获取。
+2. 继续完善 L2 订单流标准化、录制与回放。
+3. 为过滤、预警确认、标的选择和 ptrade bridge 状态补自动化 UI 测试。
