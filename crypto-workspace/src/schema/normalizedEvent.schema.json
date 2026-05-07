@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://the-wyckoff.local/schemas/crypto/normalized-event.schema.json",
+  "title": "Crypto Normalized Event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "provider",
+    "venue",
+    "instrumentType",
+    "symbol",
+    "eventType",
+    "eventTime",
+    "receivedAt",
+    "source",
+    "payload"
+  ],
+  "properties": {
+    "provider": {
+      "type": "string",
+      "description": "Data provider name, for example binance, okx, tardis, coinglass, or kaiko."
+    },
+    "venue": {
+      "type": "string",
+      "description": "Original exchange or venue represented by the event."
+    },
+    "instrumentType": {
+      "type": "string",
+      "enum": ["spot", "perp", "futures", "index", "aggregate"]
+    },
+    "symbol": {
+      "type": "string",
+      "description": "Canonical symbol, for example BTC-USDT-SPOT or BTC-USDT-PERP."
+    },
+    "providerSymbol": {
+      "type": "string",
+      "description": "Provider-native symbol used in the request."
+    },
+    "eventType": {
+      "type": "string",
+      "enum": [
+        "trade",
+        "book_snapshot",
+        "book_delta",
+        "open_interest",
+        "funding_rate",
+        "liquidation",
+        "mark_price",
+        "index_price",
+        "heartbeat",
+        "provider_status"
+      ]
+    },
+    "eventTime": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp assigned by the venue or provider."
+    },
+    "receivedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Local timestamp when this workspace received the event."
+    },
+    "sequence": {
+      "type": ["string", "number", "null"],
+      "description": "Provider sequence number, update id, or null when unavailable."
+    },
+    "source": {
+      "type": "string",
+      "enum": ["rest", "websocket", "file", "replay", "manual"]
+    },
+    "latencyMs": {
+      "type": ["number", "null"],
+      "minimum": 0
+    },
+    "payload": {
+      "type": "object",
+      "description": "Provider-specific raw payload or minimally normalized event body."
+    },
+    "quality": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "isDelayed": { "type": "boolean" },
+        "isGapFill": { "type": "boolean" },
+        "warnings": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

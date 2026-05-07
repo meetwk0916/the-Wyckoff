@@ -8,6 +8,8 @@
 
 当前对接优先级已经明确：ptrade 相关能力按 Phase 0 环境预检查、Phase 1 回测 / 模拟盘 / 交易报告闭环、Phase 2 L2 / 逐笔增强与统一契约、Phase 3 实盘执行与风控闸门推进；当前主线是 Phase 1，真实 L2 / 逐笔权限验证属于紧随其后的 Phase 2 入口条件。
 
+BTC / crypto 方向是新的独立工作面，先阅读 `docs/crypto-wyckoff/README.md`、`GOALS.md`、`DATA-SOURCES.md`、`IMPLEMENTATION-PATH.md` 和 `VALIDATION-LOG.md`。它当前只做目标、数据源验证、事件契约、历史回放和 paper trade 路线设计，不接真实交易所资金账户。
+
 ## 优先阅读
 
 1. `README.md`
@@ -17,6 +19,7 @@
 5. `docs/wyckoff-mvp/TEST-CASES.md`
 6. `docs/wyckoff-mvp/PTRADE-INTEGRATION.md`
 7. `docs/wyckoff-mvp/PTRADE-TRADING.md`
+8. 如处理 BTC / crypto 路线，再读 `docs/crypto-wyckoff/README.md`
 
 ## 当前状态
 
@@ -30,6 +33,7 @@
 - 已完成 canonical ptrade 脚本的一轮真实参数回测，已验证报告 / 状态记忆 / 试仓升级 / runner 重锚主路径
 - 当前默认以 soft gate 方式允许无 L2 / 逐笔环境下降级回测；真实交易时段权限验证仍未完成
 - 当前没有后端，也没有券商接入
+- BTC / crypto 方向已有文档化目标和数据源研究，尚未新增 `crypto-workspace/`
 - 手工验收用例已整理完毕
 
 ## 常用命令
@@ -45,6 +49,8 @@
 - 不要把当前产品表述成可直接执行交易的系统。
 - 优先继续抽离数据契约和数据访问层，而不是继续膨胀 `src/App.jsx`。
 - 只要 UI 行为变化，就同步更新 `docs/wyckoff-mvp/TEST-CASES.md`。
+- BTC / crypto 方向不得混入 `ptrade-workspace/`；新增实现时应使用独立 `crypto-workspace/`。
+- BTC / crypto 第一阶段只允许做数据源验证、落盘、回放、洗盘过滤和 paper trade 设计，不要接真实资金账户或保存交易所 API key。
 - 进行实质性改动后，运行 `npm run lint` 和 `npm run build`。
 
 ## 推荐下一步

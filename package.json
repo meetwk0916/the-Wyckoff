@@ -8,7 +8,11 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "ptrade:bridge": "node server/ptradeBridge.mjs"
+    "ptrade:bridge": "node server/ptradeBridge.mjs",
+    "crypto:probe": "node crypto-workspace/src/runProviderProbe.mjs",
+    "crypto:ws-probe": "node crypto-workspace/src/runWsProbe.mjs",
+    "crypto:capture": "node crypto-workspace/src/runLiveCapture.mjs",
+    "crypto:capture:status": "node crypto-workspace/src/runCaptureStatus.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.542.0",
