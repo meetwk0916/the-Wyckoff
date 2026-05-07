@@ -1,0 +1,39 @@
+{
+  "markets": [
+    {
+      "id": "btc-usdt",
+      "baseAsset": "BTC",
+      "quoteAsset": "USDT",
+      "instruments": [
+        {
+          "instrumentType": "spot",
+          "canonicalSymbol": "BTC-USDT-SPOT",
+          "providerSymbols": {
+            "binance": "BTCUSDT",
+            "okx": "BTC-USDT"
+          }
+        },
+        {
+          "instrumentType": "perp",
+          "canonicalSymbol": "BTC-USDT-PERP",
+          "providerSymbols": {
+            "binance": "BTCUSDT",
+            "okx": "BTC-USDT-SWAP"
+          }
+        }
+      ]
+    }
+  ],
+  "providerCandidates": {
+    "researchPrimary": ["tardis", "kaiko", "coinglass"],
+    "liveFallback": ["binance", "okx"]
+  },
+  "phase0RequiredEventTypes": [
+    "trade",
+    "book_snapshot",
+    "book_delta",
+    "open_interest",
+    "funding_rate",
+    "liquidation"
+  ]
+}

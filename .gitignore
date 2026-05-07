@@ -15,6 +15,12 @@ server/recordings/
 ptrade-workspace/state/*.pkl
 ptrade-workspace/state/*.json
 !ptrade-workspace/state/README.md
+crypto-workspace/data/**/*.json
+crypto-workspace/data/**/*.jsonl
+crypto-workspace/data/**/*.csv
+crypto-workspace/data/**/*.parquet
+crypto-workspace/reports/*.json
+crypto-workspace/run/*.pid
 
 # Python
 .venv/
