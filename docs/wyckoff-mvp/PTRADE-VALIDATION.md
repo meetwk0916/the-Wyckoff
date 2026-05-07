@@ -2,7 +2,7 @@
 
 ## 目的
 
-这份脚本现在按 Phase 0 环境预检查理解：它用于给 `ptrade_wyckoff_trader.py` 上线前做账号、L2 和网络边界确认，不再作为最终交易 / 回测方案本身。
+这份脚本现在按 Phase 0 环境预检查理解：它用于给 `ptrade-workspace/strategy/ptrade_wyckoff_trader.py` 上线前做账号、L2 和网络边界确认，不再作为最终交易 / 回测方案本身。
 
 这份脚本用于在官方 PTrade 交易环境里一次性验证三件事：
 
@@ -45,7 +45,7 @@
 - 买一 / 卖一档位
 - 委托笔数
 - 是否看到第一档委托队列
-- 最近逐笔委托 / 逐笔成交是否有数据
+- 逐笔委托 / 逐笔成交是否有数据
 
 ### 3. 出站 HTTP 检查
 
@@ -109,7 +109,7 @@ g.smoke_test_enabled = True
 
 ## 输出位置
 
-脚本会把最近一次结果写到：
+脚本会把验证结果覆盖写到：
 
 ```text
 /home/fly/notebook/ptrade-phase1-validation-last.json

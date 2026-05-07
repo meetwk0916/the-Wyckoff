@@ -2,7 +2,12 @@
 
 ## 测试策略
 
-当前这组用例覆盖了冲刺 1 的行为，以及冲刺 2 的第一个检查面切片。后续可以补自动化覆盖，但现在这份文档就是当前版本的行为基线。
+当前这组用例分成两部分：
+
+- 前端控制台行为基线。
+- ptrade Phase 1 / Phase 2 的策略回归与待执行验收。
+
+后续可以补自动化覆盖，但现在这份文档就是当前版本的行为基线。
 
 ## 验收用例
 
@@ -135,9 +140,132 @@
 - `mock` 模式必须显示为联调就绪，而不是误报为真实已连接。
 - 面板可以展示当前选中标的的 L2 样例数据。
 
+## ptrade 策略回归与后续验收
+
+### TC-010 ptrade 首轮回测报告闭环
+
+当前状态：已通过回测验证。
+
+前置条件：将 canonical 脚本部署到 ptrade 回测，使用真实策略参数和已验证样本区间（例如 2026-01 至 2026-04）。
+
+步骤：
+
+1. 启动日线或分钟级回测。
+2. 观察日志与 `/home/fly/notebook/` 输出。
+
+预期：
+
+- 回测可以跑完，不因 L2 / 逐笔接口缺失直接中断。
+- 生成 `ptrade-wyckoff-trade-report-last.json`。
+- 报告包含 `symbols`、`execution`、`strategyState`、`symbolUniverse` 等关键字段。
+
+### TC-011 flat-start 状态回收
+
+当前状态：已通过回测验证。
+
+前置条件：上一轮回测留下了 state 文件，但当前运行开始时实际持仓为 0 或 active symbols 已变化。
+
+步骤：
+
+1. 保留上一轮状态文件。
+2. 用同一脚本重新发起 flat start 回测，或切换当前标的池后重跑。
+3. 检查新报告里的 `strategyState`。
+
+预期：
+
+- 策略会在开盘前按 live position 与 active symbols 收敛 state memory。
+- flat 标的的 `positionStage` 回到 `none`，`managedTargetRatio` / `runnerTargetRatio` 回到 0。
+- 报告不会继承上一轮 full position 的旧元数据。
+
+### TC-012 试仓升级与 runner 重锚
+
+当前状态：已通过回测验证。
+
+前置条件：所选样本区间中包含先试仓、后正式执行或 LPS 加仓的场景。
+
+步骤：
+
+1. 运行已验证样本区间回测。
+2. 检查 promotion / add 当天的 `decision` 与 `strategyState`。
+
+预期：
+
+- `pilot` 持仓可以在正式执行信号出现后升级为 `full`。
+- 加仓后 `managedTargetRatio` 与 `runnerTargetRatio` 会一起更新，而不是停留在旧 runner 值。
+- `lastReason` 能反映 `pilot_promoted_*` 或对应的加仓原因。
+
+### TC-013 UTAD 与趋势 runner 非回归
+
+当前状态：已通过回测验证。
+
+前置条件：样本区间中同时包含强趋势浅回撤和真正的上冲回落场景。
+
+步骤：
+
+1. 对比检查强趋势浅回撤和真实 UTAD 类场景。
+2. 观察信号状态与仓位决策。
+
+预期：
+
+- 浅回撤不会仅因冲高回落就被误判成 `UTAD`。
+- 趋势 runner 不会仅因 `trendReady = false` 就直接清仓；只有重新跌回旧箱体并失去趋势支撑时才退出。
+- 已知误杀场景不应重新出现。
+
+### TC-014 微观数据降级语义
+
+当前状态：已通过回测验证。
+
+前置条件：回测或运行环境不提供 `get_snapshot()` / 逐笔成交能力，且默认参数保持 `require_l2_for_entry = False`、`require_trade_stream_for_entry = False`。
+
+步骤：
+
+1. 启动回测。
+2. 检查报告中的微观确认字段与错误字段。
+
+预期：
+
+- `l2DataAvailable` / `tradeStreamDataAvailable` 能真实反映当前能力是否可用。
+- `l2Error` / `tradeStreamError` 能区分“能力不可用”和“当前无数据”。
+- 默认 soft gate 下回测仍可继续，且不会每天重复刷相同能力探测 warning。
+
+### TC-015 模拟盘订单与报告闭环
+
+当前状态：待执行。
+
+前置条件：同一份 canonical 脚本已部署到 ptrade 模拟盘，且已绑定正确资金账号。
+
+步骤：
+
+1. 在模拟交易时段启动策略。
+2. 观察订单、成交、持仓与日终报告。
+
+预期：
+
+- `get_open_orders` 能阻止重复叠单。
+- 报告里的订单、成交、持仓与模拟盘实际结果一致。
+- state 文件与 JSON 报告会在日终被正确更新。
+
+### TC-016 交易时段 L2 / 逐笔权限验证
+
+当前状态：待执行。
+
+前置条件：真实交易时段，目标账号具备候选标的的行情与逐笔权限。
+
+步骤：
+
+1. 运行 `ptrade_phase1_validation.py` 或 canonical 策略。
+2. 检查 snapshot、trade stream 与确认字段。
+
+预期：
+
+- 能区分 `confirmed`、`market_not_live`、`unavailable`、`capability_unavailable`、未授权等状态。
+- 验证完成后，可以明确判断是否把 `require_l2_for_entry` / `require_trade_stream_for_entry` 切为 `True`。
+
 ## 后续每轮迭代的回归检查
 
 - 应用根路径仍然渲染控制台。
 - `npm run build` 仍然通过。
 - 标的检查面板始终与当前监控列表选择保持同步。
 - 新增过滤器或面板时，不得隐藏风险拦截信息。
+- 只要修改 `ptrade-workspace/strategy/ptrade_wyckoff_trader.py`，至少复跑 TC-010 到 TC-014。
+- 进入模拟盘和交易时段联调后，把 TC-015 与 TC-016 变成每次实质性策略改动后的必跑项。
