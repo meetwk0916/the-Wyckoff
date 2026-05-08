@@ -10,6 +10,7 @@ def initialize(context):
     g.live_order_armed = False
     g.enable_pilot_entries = True
     g.enable_pilot_promotion = True
+    g.enable_open_order_recovery = True
     g.use_runtime_universe = True
     g.follow_runtime_symbols_for_policy_pool = True
     g.prune_state_to_active_symbols = True
@@ -64,6 +65,7 @@ def initialize(context):
     g.pilot_position_scale = 0.35
     g.trim_fraction = 0.50
     g.runner_position_fraction = 0.50
+    g.open_order_timeout_bars = 3
     g.benchmark_symbol = normalize_symbol('000300.XSHG')
 
     g.report_file = 'ptrade-wyckoff-trade-report-last.json'
@@ -282,11 +284,9 @@ def execute_symbol_plan(symbol, plan):
     serialized_open_orders = serialize_orders(open_orders)
 
     if serialized_open_orders:
-        return {
-            'status': 'blocked',
-            'reason': 'open_orders_present',
-            'openOrders': serialized_open_orders,
-        }
+        return handle_open_orders(symbol, open_orders, serialized_open_orders)
+
+    clear_symbol_execution_recovery(symbol)
 
     if reference_price <= 0:
         return {
@@ -346,6 +346,145 @@ def execute_symbol_plan(symbol, plan):
             'limitPrice': reference_price if g.use_limit_price else None,
             'openOrders': serialized_open_orders,
         }
+
+
+def handle_open_orders(symbol, open_orders, serialized_open_orders):
+    recovery_state = build_open_order_recovery_state(symbol, serialized_open_orders)
+    timeout_bars = max(1, safe_int(getattr(g, 'open_order_timeout_bars', 3)))
+    recovery_enabled = bool(getattr(g, 'enable_open_order_recovery', True))
+
+    if not recovery_enabled or recovery_state.get('seenBars', 0) < timeout_bars or not orders_enabled():
+        recovery_state['action'] = 'observe'
+        write_symbol_execution_recovery(symbol, recovery_state)
+        return {
+            'status': 'blocked',
+            'reason': 'open_orders_present',
+            'openOrders': serialized_open_orders,
+            'recovery': recovery_state,
+        }
+
+    cancel_result = cancel_open_orders(open_orders, serialized_open_orders)
+    recovery_state['action'] = 'cancel_requested' if cancel_result.get('acceptedCount') else 'cancel_failed'
+    recovery_state['cancelResult'] = cancel_result
+    write_symbol_execution_recovery(symbol, recovery_state)
+
+    return {
+        'status': 'recovering' if cancel_result.get('acceptedCount') else 'blocked',
+        'reason': 'stale_open_orders_cancel_requested' if cancel_result.get('acceptedCount') else 'stale_open_orders_cancel_failed',
+        'openOrders': serialized_open_orders,
+        'recovery': recovery_state,
+    }
+
+
+def build_open_order_recovery_state(symbol, serialized_open_orders):
+    previous_state = read_symbol_execution_recovery(symbol)
+    open_order_signature = build_open_order_signature(serialized_open_orders)
+    previous_signature = previous_state.get('openOrderSignature')
+
+    if open_order_signature and open_order_signature == previous_signature:
+        seen_bars = safe_int(previous_state.get('seenBars')) + 1
+    else:
+        seen_bars = 1
+
+    return {
+        'openOrderSignature': open_order_signature,
+        'seenBars': seen_bars,
+        'openOrderCount': len(serialized_open_orders),
+        'timeoutBars': max(1, safe_int(getattr(g, 'open_order_timeout_bars', 3))),
+    }
+
+
+def build_open_order_signature(serialized_open_orders):
+    if not isinstance(serialized_open_orders, list):
+        return ''
+
+    signature_rows = []
+    for item in serialized_open_orders:
+        signature_rows.append(
+            {
+                'id': read_object_value(item, 'id'),
+                'entrustNo': read_object_value(item, 'entrustNo'),
+                'symbol': read_object_value(item, 'symbol'),
+                'amount': safe_int(read_object_value(item, 'amount')),
+                'filled': safe_int(read_object_value(item, 'filled')),
+                'status': read_object_value(item, 'status'),
+            }
+        )
+
+    signature_rows.sort(
+        key=lambda item: (
+            str(item.get('id') or ''),
+            str(item.get('entrustNo') or ''),
+            str(item.get('symbol') or ''),
+            safe_int(item.get('amount')),
+            safe_int(item.get('filled')),
+            str(item.get('status') or ''),
+        )
+    )
+    return json.dumps(signature_rows, ensure_ascii=False, sort_keys=True)
+
+
+def cancel_open_orders(open_orders, serialized_open_orders):
+    cancel_func = globals().get('cancel_order')
+    if not callable(cancel_func):
+        return {
+            'attempted': False,
+            'acceptedCount': 0,
+            'results': [],
+            'reason': 'cancel_order_unavailable',
+        }
+
+    results = []
+    accepted_count = 0
+    serialized_rows = serialized_open_orders if isinstance(serialized_open_orders, list) else []
+
+    for index, open_order in enumerate(open_orders):
+        serialized_order = serialized_rows[index] if index < len(serialized_rows) else {}
+        order_result = try_cancel_open_order(cancel_func, open_order, serialized_order)
+        results.append(order_result)
+        if order_result.get('accepted'):
+            accepted_count += 1
+
+    return {
+        'attempted': True,
+        'acceptedCount': accepted_count,
+        'results': results,
+        'reason': 'cancel_requested' if accepted_count else 'cancel_not_accepted',
+    }
+
+
+def try_cancel_open_order(cancel_func, open_order, serialized_order):
+    candidates = []
+    order_id = read_object_value(serialized_order, 'id')
+    entrust_no = read_object_value(serialized_order, 'entrustNo')
+
+    if order_id not in [None, '']:
+        candidates.append(('id', order_id))
+    if entrust_no not in [None, ''] and entrust_no != order_id:
+        candidates.append(('entrustNo', entrust_no))
+    candidates.append(('rawOrder', open_order))
+
+    errors = []
+    for candidate_type, candidate_value in candidates:
+        try:
+            result = cancel_func(candidate_value)
+            return {
+                'accepted': True,
+                'candidateType': candidate_type,
+                'candidateValue': candidate_value if candidate_type != 'rawOrder' else None,
+                'result': result,
+                'errors': errors,
+            }
+        except Exception as error:
+            errors.append('{0}: {1}'.format(candidate_type, error))
+
+    return {
+        'accepted': False,
+        'candidateType': None,
+        'candidateValue': None,
+        'result': None,
+        'errors': errors,
+    }
 
 
 def evaluate_signal(symbol, history, reference_price, l2_confirmation, macro_context=None, policy_context=None, state_memory=None):
@@ -1552,7 +1691,7 @@ def build_next_symbol_state(symbol, signal, decision, previous_state):
     elif managed_target_ratio > 0 and position_stage == 'none':
         position_stage = 'pilot' if signal.get('entryStage') == 'pilot' else 'full'
 
-    return {
+    next_state = {
         'symbol': normalize_symbol(symbol),
         'phase': phase,
         'setupType': signal.get('setupType'),
@@ -1566,6 +1705,12 @@ def build_next_symbol_state(symbol, signal, decision, previous_state):
         'managedTargetRatio': round(managed_target_ratio, 4),
         'runnerTargetRatio': round(runner_target_ratio, 4),
     }
+
+    execution_recovery = previous_state.get('executionRecovery')
+    if isinstance(execution_recovery, dict):
+        next_state['executionRecovery'] = execution_recovery
+
+    return next_state
 
 
 def read_symbol_state(symbol):
@@ -1591,6 +1736,27 @@ def write_symbol_state(symbol, symbol_state):
     if not isinstance(g.strategy_state, dict):
         g.strategy_state = {}
     g.strategy_state[normalize_symbol(symbol)] = symbol_state
+
+
+def read_symbol_execution_recovery(symbol):
+    symbol_state = read_symbol_state(symbol)
+    recovery_state = symbol_state.get('executionRecovery')
+    if isinstance(recovery_state, dict):
+        return recovery_state
+    return {}
+
+
+def write_symbol_execution_recovery(symbol, recovery_state):
+    symbol_state = dict(read_symbol_state(symbol))
+    if isinstance(recovery_state, dict) and recovery_state:
+        symbol_state['executionRecovery'] = recovery_state
+    else:
+        symbol_state.pop('executionRecovery', None)
+    write_symbol_state(symbol, symbol_state)
+
+
+def clear_symbol_execution_recovery(symbol):
+    write_symbol_execution_recovery(symbol, None)
 
 
 def load_strategy_state():

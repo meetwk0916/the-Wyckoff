@@ -29,6 +29,12 @@
 - 当前默认把 L2 / 逐笔成交缺失视为可降级输入，而不是硬闸门；这不阻塞 Phase 1 回测，但会直接影响 Spring 真伪、UTAD 假突破和后续自动化交易前的微观确认质量。
 - 当前下一阶段主线是：模拟盘闭环 -> 真实交易时段 L2 / 逐笔权限验证 -> `cancel_order` 超时撤单 / 次日对账 -> 再推进带审批与风控闸门的自动化交易。
 
+当前已知环境补充：
+
+- 当前券商为国金。
+- 按官方 reference，国金属于较早升级到 `python3.11` 的 ptrade 环境，因此本项目默认优先按 `python3.11` 返回格式做验证与兼容。
+- 这只代表默认优先路径，不代表可以跳过现场确认；测试版 / 实盘版客户端、L2 权限和 API 返回细节仍需在当前账户上逐项验证。
+
 ## 当前策略做了什么
 
 ### 1. 统一回测和模拟盘入口
@@ -52,6 +58,7 @@
 
 - 官方文档虽然也提供 `order_target`、`order_target_value`，但明确提示交易场景可能因为持仓同步滞后导致重复下单。
 - 因此当前策略优先用 `order` 做 delta 下单，并在下单前先检查 `get_open_orders()`。
+- 如果后续在国金环境中确认 `python3.11` 路径稳定，可优先按 DataFrame / dict 返回格式做联调，不再围绕老的 Panel 返回结构设计主路径。
 
 ### 3. 输出日终交易报告
 
@@ -86,6 +93,8 @@ g.require_l2_for_entry = False
 g.require_trade_stream_for_entry = False
 g.max_position_ratio = 0.25
 g.scale_position_cap_to_universe = True
+g.enable_open_order_recovery = True
+g.open_order_timeout_bars = 3
 g.stop_loss_pct = 0.03
 g.trend_stop_loss_pct = 0.06
 g.utad_close_position_threshold = 0.75
@@ -114,6 +123,8 @@ g.utad_min_volume_ratio = 1.00
 - `g.enable_trade_stream_confirmation = True`：策略会尝试读取逐笔成交并计算 CVD；如果当前运行环境不支持该接口，也会在首次失败后自动降级。
 - `g.require_l2_for_entry = False`：默认不让 L2 缺失阻塞回测入场，真实环境确认权限后可改成 `True`。
 - `g.require_trade_stream_for_entry = False`：默认不让逐笔成交缺失阻塞回测入场，真实环境确认权限后可改成 `True`。
+- `g.enable_open_order_recovery = True`：默认允许对连续多个决策周期仍未消失的 open orders 进入恢复流程，而不是无限期 `blocked`。
+- `g.open_order_timeout_bars = 3`：同一批 open orders 连续出现多少个 `handle_data()` 周期后，策略开始尝试调用 `cancel_order()`；这是当前版本对“挂单超时”的最小近似语义。
 
 ## 回测步骤
 
@@ -135,6 +146,7 @@ g.utad_min_volume_ratio = 1.00
 - `entryStage`：当前是纯观察、试仓还是正式执行；`pilot` 表示允许轻仓试仓，`full` 表示允许正式执行。
 - `pilotReady` / `formalEntryReady`：分别表示“可试仓”和“可正式执行”是否成立。
 - `positionStage` / `promotionReady`：分别表示当前持仓仍处于试仓还是已进入正式仓，以及当前试仓是否满足升级到正式仓位的条件。
+- `execution.recovery`：当同一批 open orders 连续出现时，报告会记录 `seenBars`、`timeoutBars` 和撤单尝试结果，用来区分“继续观察中的挂单”和“已进入恢复流程的挂单”。
 
 建议第一轮优先使用：
 
@@ -178,6 +190,7 @@ g.utad_min_volume_ratio = 1.00
 - 普通趋势转弱先减仓，而不是仅因跌破慢线就直接清仓
 - runner 在退化为非执行型结构且趋势不再成立时退出，避免长时间回吐已兑现利润
 - 成本止损或结构止损触发时再执行离场；其中 `full` 趋势仓位在趋势未破坏前会使用更宽的 `g.trend_stop_loss_pct`。
+- 当同一批 open orders 连续多个决策周期仍未消失时，执行层会先记录 `executionRecovery` 状态；达到 `g.open_order_timeout_bars` 后，会优先尝试 `cancel_order()`，本周期不再继续提交新单，避免在模拟盘里永久卡死在 `open_orders_present`。
 
 试仓开关当前也保留为参数：
 

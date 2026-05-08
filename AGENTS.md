@@ -13,13 +13,14 @@ BTC / crypto 方向是新的独立工作面，先阅读 `docs/crypto-wyckoff/REA
 ## 优先阅读
 
 1. `README.md`
-2. `docs/wyckoff-mvp/PRD.md`
-3. `docs/wyckoff-mvp/IMPLEMENTATION-PATH.md`
-4. `docs/wyckoff-mvp/MVP.md`
-5. `docs/wyckoff-mvp/TEST-CASES.md`
-6. `docs/wyckoff-mvp/PTRADE-INTEGRATION.md`
-7. `docs/wyckoff-mvp/PTRADE-TRADING.md`
-8. 如处理 BTC / crypto 路线，再读 `docs/crypto-wyckoff/README.md`
+2. `docs/wyckoff-mvp/README.md`
+3. `docs/ptrade-wyckoff/README.md`
+4. `docs/ptrade-wyckoff/GOALS.md`
+5. `docs/ptrade-wyckoff/IMPLEMENTATION-PATH.md`
+6. `docs/wyckoff-mvp/PRD.md`
+7. `docs/wyckoff-mvp/IMPLEMENTATION-PATH.md`
+8. `docs/wyckoff-mvp/TEST-CASES.md`
+9. 如处理 BTC / crypto 路线，再读 `docs/crypto-wyckoff/README.md`
 
 ## 当前状态
 
@@ -31,9 +32,11 @@ BTC / crypto 方向是新的独立工作面，先阅读 `docs/crypto-wyckoff/REA
 - ptrade 内唯一应复制和运行的主脚本为 `ptrade-workspace/strategy/ptrade_wyckoff_trader.py`
 - ptrade 策略侧已接入静态标的池、长周期量价、RS / Beta、L2 订单簿失衡、逐笔 CVD 和 pickle 状态记忆
 - 已完成 canonical ptrade 脚本的一轮真实参数回测，已验证报告 / 状态记忆 / 试仓升级 / runner 重锚主路径
+- 已在实际 ptrade 环境验证 `get_research_path()` + JSON + sqlite3 的 Phase 0 无 HTTP 基线，`ptrade_phase1_validation.py` 默认先走本地持久化
+- Windows relay 仅保留为客户端本地联调工具，不再默认视为 ptrade 真正运行环境的目标地址
 - 当前默认以 soft gate 方式允许无 L2 / 逐笔环境下降级回测；真实交易时段权限验证仍未完成
 - 当前没有后端，也没有券商接入
-- BTC / crypto 方向已有文档化目标和数据源研究，尚未新增 `crypto-workspace/`
+- BTC / crypto 方向已有独立 `crypto-workspace/` 与数据源探测脚本，用于 Phase 0 供应商验证与事件契约验证
 - 手工验收用例已整理完毕
 
 ## 常用命令
@@ -58,6 +61,6 @@ BTC / crypto 方向是新的独立工作面，先阅读 `docs/crypto-wyckoff/REA
 1. 在 ptrade 模拟盘验证 `ptrade-workspace/strategy/ptrade_wyckoff_trader.py` 的订单、成交、持仓、报告和状态记忆闭环。
 2. 在真实 ptrade 交易时段验证 L2 / 逐笔成交权限，并决定何时把 `require_l2_for_entry` / `require_trade_stream_for_entry` 切为强制闸门。
 3. 增加基于 `cancel_order` 的超时撤单 / 重报价，以及基于 `get_deliver()` / `get_fundjour()` 的次日对账。
-4. 继续完善 cause count、失败结构识别和严格微观确认，把 ptrade 作为自动化交易前的主试验场推进。
-5. 将本地 `ptrade bridge` 从 `mock` 模式切到真实上游连接，并统一前端与策略侧的数据契约。
+4. 按 `docs/ptrade-wyckoff/GOALS.md` 的成功准则把结构候选过滤器、cause count、失败结构识别和严格微观确认推进为可复核证据对象。
+5. 优先补一个读取研究目录 JSON / sqlite3 的 bridge / reader 路径，再决定是否保留 HTTP 上游模式，并统一前端与策略侧的数据契约。
 6. 为过滤、预警确认、标的选择和 ptrade bridge 状态补自动化 UI 测试。

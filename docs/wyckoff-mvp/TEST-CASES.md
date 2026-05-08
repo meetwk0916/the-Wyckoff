@@ -242,6 +242,7 @@
 预期：
 
 - `get_open_orders` 能阻止重复叠单。
+- 同一批 open orders 连续出现多个决策周期后，`execution.recovery` 与 `strategyState.executionRecovery` 会记录 `seenBars` 和撤单尝试结果，而不是永久停留在不可解释的 `open_orders_present`。
 - 报告里的订单、成交、持仓与模拟盘实际结果一致。
 - state 文件与 JSON 报告会在日终被正确更新。
 
