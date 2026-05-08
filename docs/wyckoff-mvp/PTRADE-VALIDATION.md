@@ -145,14 +145,14 @@ Wyckoff ptrade validation => ...
 - `localResultPath` 有值：说明 JSON 文件已经尝试写到研究目录。
 - `localSqliteStatus = persisted`：说明 sqlite 已经记录本次结果，可作为 Phase 0 默认持久化路径。
 - `outbound.status = skipped`：说明你没有配置网络目标；这是 Phase 0 默认行为。
-- `outbound.status = success`：说明可继续评估 HTTP exporter / relay。
+- `outbound.status = success`：说明这个环境存在可用的 HTTP 出口；是否要继续用 relay，仍应晚于 JSON / sqlite3 主路径判断。
 - `outbound.status = error`：先看 `outbound.failureStage`，再决定是改目标地址、改 relay 部署位置，还是直接走本地落盘。
 
 ## 适用场景
 
 - `交易` 场景。
 - 股票业务优先。
-- 希望先确认 Phase 1 可行性，再继续做 exporter / relay。
+- 希望先确认 Phase 1 可行性，并把账号、L2、本地落盘这三类前置条件先收口。
 
 不建议在研究或纯回测中使用这份脚本做最终判断，因为逐笔委托、逐笔成交和快照权限判断都依赖交易环境。
 
@@ -260,13 +260,13 @@ g.validation_targets = [
 - 访问 relay 的进程真的与某台 WSL 实例处于同一网络
 - 或者你已经明确验证券商服务器对那台 WSL 实例的 IP 可达
 
-如果你决定改成 Windows 本机 relay 验证，而不再依赖 WSL 网络转发，可直接使用：
+如果你只是为了验证“Windows 客户端本机 relay 能否工作”，而不再依赖 WSL 网络转发，可直接使用：
 
 - `ptrade-workspace/windows-relay/ptrade_relay_server.py`
 - `ptrade-workspace/windows-relay/ptrade_relay_server.ps1`
 - `ptrade-workspace/windows-relay/start_ptrade_relay.bat`
 
-这条路线现在只用于验证 Windows 客户端本地 relay 能否正常工作，不再默认等同于 ptrade 真实运行环境。它的本机测试地址是：
+这条路线只用于验证 Windows 客户端本地 relay 能否正常工作，不再默认等同于 ptrade 真实运行环境。更详细的本地 relay 说明统一收口在 `ptrade-workspace/windows-relay/README.md`。它的本机测试地址是：
 
 ```python
 g.validation_target = ''
@@ -316,6 +316,8 @@ g.validation_targets = [
 ```
 
 脚本会按列表顺序逐个尝试，遇到第一个成功目标就停止；如果全部失败，会保留每一次尝试的详细结果。
+
+如果你当前并不打算专门验证 HTTP 出口，可以直接跳过本节后半段的 relay 示例，只保留 `g.validation_target = ''` 的默认配置即可。
 
 结果里会额外记录这些字段，方便定位失败层级：
 
