@@ -35,15 +35,27 @@
 
 ## Phase 1：Crypto Sensor
 
-目标：新增 `crypto-workspace/`，实现 BTC 数据采集、标准化和落盘。
+目标：在现有 `crypto-workspace/` 上继续推进 BTC 数据采集、标准化和落盘。
 
-待实现：
+当前已存在的工作区骨架：
 
 - `crypto-workspace/README.md`
 - `crypto-workspace/config/markets.json`
-- `crypto-workspace/src/provider/*`
-- `crypto-workspace/src/normalize/*`
+- `crypto-workspace/src/providers/`
+- `crypto-workspace/src/schema/normalizedEvent.schema.json`
+- `crypto-workspace/src/runProviderProbe.mjs`
+- `crypto-workspace/src/runWsProbe.mjs`
+- `crypto-workspace/src/runLiveCapture.mjs`
+- `crypto-workspace/src/runCaptureStatus.mjs`
 - `crypto-workspace/data/README.md`
+- `crypto-workspace/reports/README.md`
+
+下一步待补：
+
+- append-only 原始事件落盘规范
+- 标准化事件写盘路径
+- capture 状态报告与数据缺口报告
+- provider-specific payload 到 canonical schema 的稳定转换层
 
 最小采集对象：
 

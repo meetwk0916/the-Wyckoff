@@ -139,12 +139,6 @@ http://127.0.0.1:19090/ptrade
 
 但当前已确认：ptrade 实际运行在券商服务器上，Windows 这边只是客户端。因此这个 `127.0.0.1` 只能用于本机自检，不能默认作为 ptrade 策略里的真实出站地址。
 
-当前这台开发机在 WSL 内检测到的本机 IPv4 是：
-
-```bash
-http://172.19.46.143:19090
-```
-
 对应接口：
 
 - `POST /ptrade`
@@ -155,8 +149,8 @@ http://172.19.46.143:19090
 
 - 本机客户端自检：可用 `http://127.0.0.1:19090/ptrade`
 - ptrade 真正出站目标：必须改成券商服务器实际可达的内网 IP、域名或中转地址
-- 其他机器访问当前 relay：再考虑 `http://172.19.46.143:19090/ptrade` 或你自己确认可达的内网 IP
-- WSL 内网 IP 可能在重启后变化
+- 其他机器访问当前 relay：请改成你自己确认可达的内网 IP 或域名
+- 不要把当前开发机的临时 WSL 内网 IP 写进仓库文档；这类地址会随重启和网络切换变化
 
 ### 5. 启动 ptrade Phase 1 bridge
 
@@ -178,10 +172,10 @@ PTRADE_MODE=upstream PTRADE_UPSTREAM_URL=http://127.0.0.1:19090 npm run ptrade:b
 PTRADE_MODE=upstream PTRADE_UPSTREAM_URL=http://127.0.0.1:19090 npm run ptrade:bridge
 ```
 
-如果你要显式走当前检测到的 WSL IPv4，也可以这样配：
+如果你要显式走某个内网 IP，也可以这样配：
 
 ```bash
-PTRADE_MODE=upstream PTRADE_UPSTREAM_URL=http://172.19.46.143:19090 npm run ptrade:bridge
+PTRADE_MODE=upstream PTRADE_UPSTREAM_URL=http://<broker-reachable-ip-or-host>:19090 npm run ptrade:bridge
 ```
 
 说明：当前这台 WSL 环境里没有检测到现成的 ptrade 安装或连接配置，所以仓库内只能先做到本地 bridge 联调，真实连接仍依赖外部上游服务。

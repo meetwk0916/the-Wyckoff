@@ -148,7 +148,8 @@
 ## 9. 文档导航
 
 - `MVP.md`: 当前最小可交付物边界
-- `PTRADE-INTEGRATION.md`: ptrade 对接的三阶段规划
+- `PTRADE-INTEGRATION.md`: ptrade 对接边界说明
+- `../ptrade-wyckoff/README.md`: ptrade Phase 0-3 主路线入口
 - `SPRINTS.md`: 迭代节奏和分阶段目标
 - `TEST-CASES.md`: 手工验收与回归检查
 - `IMPLEMENTATION-PATH.md`: 工程实施顺序和下一步切口

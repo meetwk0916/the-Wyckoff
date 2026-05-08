@@ -229,9 +229,9 @@ g.validation_target = 'http://你确认可达的内网relay或中转地址/ptrad
 
 ```python
 g.validation_targets = [
-	'https://httpbin.org/post',
 	'http://你的内网relay地址:19090/ptrade',
-	'http://你的IP地址:19090/ptrade',
+	'http://broker-reachable-ip-or-host:19090/ptrade',
+	'https://httpbin.org/post',
 ]
 ```
 
@@ -255,10 +255,10 @@ g.validation_targets = [
 
 都不能再作为 ptrade 真实出站目标的默认项，只能作为客户端本地 relay 自检地址。
 
-当前这台 WSL 检测到的 IPv4 `172.19.46.143` 只建议在下面两种情况下使用：
+某台 WSL 实例的内网 IPv4 只建议在下面两种情况下使用：
 
-- 访问 relay 的进程真的与这台 WSL 处于同一网络
-- 或者你已经明确验证券商服务器对这个地址可达
+- 访问 relay 的进程真的与某台 WSL 实例处于同一网络
+- 或者你已经明确验证券商服务器对那台 WSL 实例的 IP 可达
 
 如果你决定改成 Windows 本机 relay 验证，而不再依赖 WSL 网络转发，可直接使用：
 
@@ -311,7 +311,7 @@ g.validation_target = ''
 g.validation_targets = [
 	'http://ptrade-relay.intra:19090/ptrade',
 	'http://broker-reachable-ip-or-host:19090/ptrade',
-	'http://172.19.46.143:19090/ptrade',
+	'http://wsl-instance-ip:19090/ptrade',
 ]
 ```
 
@@ -337,7 +337,7 @@ g.validation_targets = [
 
 ```python
 g.symbol = '600570.XSHG'
-g.validation_target = 'https://httpbin.org/post'
+g.validation_target = ''
 ```
 
 如果你要在非交易时段先做一轮 smoke test，再额外打开这个开关：
@@ -372,7 +372,7 @@ g.smoke_test_enabled = True
 3. 启动策略。
 4. 在日志里查看 `phase = smoke` 的结果。
 5. 这一轮重点只看 `account` 是否有值。
-6. 第二轮把 `g.validation_target` 改成 `https://httpbin.org/post` 或你的 relay 地址，再启动一次。
+6. 第二轮把 `g.validation_target` 改成你确认可达的 relay 地址；如果你只是额外验证公网 HTTP，再单独改成 `https://httpbin.org/post` 这类公共测试地址。
 7. 第二轮重点只看 `outbound.status`。
 
 说明：
