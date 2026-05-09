@@ -35,7 +35,7 @@ async function main() {
     generatedAt: new Date().toISOString(),
     mode: options.live ? 'live' : 'dry_run',
     marketId: market.id,
-    requiredEventTypes: ['book_delta', 'liquidation'],
+    requiredEventTypes: ['trade', 'book_delta', 'liquidation'],
     providers: providerResults,
     decisionNotes: buildDecisionNotes(providerResults),
   }

@@ -19,6 +19,7 @@ It is not a trading bot. It must not store exchange API keys or connect to funde
 - `src/runProviderProbe.mjs`: CLI entrypoint for dry-run and live probes.
 - `src/runWsProbe.mjs`: CLI entrypoint for WebSocket channel probes.
 - `src/runLiveCapture.mjs`: CLI entrypoint for short or long live JSONL captures.
+- `src/runReplayWindow.mjs`: CLI entrypoint for local JSONL replay windows.
 - `data/README.md`: local market data boundary.
 - `reports/README.md`: generated provider probe report boundary.
 
@@ -65,6 +66,12 @@ Short liquidation capture smoke test:
 npm run crypto:capture -- --duration-sec=60
 ```
 
+Capture trade streams:
+
+```bash
+npm run crypto:capture -- --duration-sec=60 --event-type=trade
+```
+
 Long liquidation capture:
 
 ```bash
@@ -72,6 +79,7 @@ npm run crypto:capture -- --duration-sec=86400 --event-type=liquidation
 ```
 
 Capture data is written under `crypto-workspace/data/raw/` and is ignored by git.
+For aggregate liquidation feeds such as OKX `liquidation-orders`, the capture step filters provider payloads to the configured BTC instrument before writing JSONL. Non-BTC liquidation messages are counted as `filteredMessages` in the capture report and are not treated as replay samples.
 
 Check active capture status:
 
@@ -79,7 +87,17 @@ Check active capture status:
 npm run crypto:capture:status
 ```
 
-This scans raw JSONL files, counts liquidation events, counts BTC-related events, and checks the `wyckoff_liq_capture_24h` screen session.
+This scans raw JSONL files, counts liquidation events, counts BTC-related events, separates true BTC liquidation events, and checks the `wyckoff_liq_capture_24h` screen session.
+
+Replay a local JSONL window:
+
+```bash
+npm run crypto:replay -- --event-type=liquidation --symbol=BTC
+npm run crypto:replay -- --start=2026-05-07T14:30:00Z --end=2026-05-07T14:40:00Z --event-type=liquidation --symbol=BTC
+```
+
+Replay reports are written to `crypto-workspace/reports/replay-window-last.json`. When provider payloads contain their own instrument symbols, replay filtering uses those payload symbols first; this avoids treating OKX full-market liquidation messages as BTC events just because the stream itself is aggregate.
+The replay report also includes instrument coverage, latency summary, and an `evidence` block. `minimumPhaseCReady` only means the selected window has both `book_delta` and `liquidation`; it is still not a Spring signal. Trade coverage is the base layer for later spot/perp CVD, but CVD calculation is intentionally not part of this capture step.
 
 ## Phase 0 Exit Criteria
 
