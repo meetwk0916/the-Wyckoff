@@ -116,6 +116,7 @@ async function summarizeJsonlFile(filePath) {
     lines: 0,
     events: 0,
     btcEvents: 0,
+    btcLiquidationEvents: 0,
     liquidationEvents: 0,
     firstReceivedAt: '',
     lastReceivedAt: '',
@@ -152,14 +153,18 @@ async function summarizeJsonlFile(filePath) {
         summary.liquidationEvents += 1
       }
 
+      const btcMatched = eventMatchesSymbol(event, 'BTC')
       const symbols = extractSymbols(event)
-      const payloadSymbols = extractPayloadSymbols(event)
       for (const symbol of symbols) {
         summary.symbols[symbol] = (summary.symbols[symbol] || 0) + 1
       }
 
-      if (payloadSymbols.some((symbol) => symbol.includes('BTC'))) {
+      if (btcMatched) {
         summary.btcEvents += 1
+      }
+
+      if (btcMatched && event.eventType === 'liquidation') {
+        summary.btcLiquidationEvents += 1
       }
     } catch {
       summary.parseErrors += 1
@@ -180,6 +185,14 @@ function extractSymbols(event) {
   }
 
   return Array.from(symbols)
+}
+
+function eventMatchesSymbol(event, symbolQuery) {
+  const normalizedQuery = String(symbolQuery || '').toUpperCase()
+  const payloadSymbols = extractPayloadSymbols(event)
+  const symbols = payloadSymbols.length > 0 ? payloadSymbols : [event.symbol, event.providerSymbol]
+
+  return symbols.some((symbol) => String(symbol || '').toUpperCase().includes(normalizedQuery))
 }
 
 function extractPayloadSymbols(event) {
@@ -213,6 +226,7 @@ function buildTotals(fileSummaries) {
       bytes: totals.bytes + file.bytes,
       events: totals.events + file.events,
       btcEvents: totals.btcEvents + file.btcEvents,
+      btcLiquidationEvents: totals.btcLiquidationEvents + file.btcLiquidationEvents,
       liquidationEvents: totals.liquidationEvents + file.liquidationEvents,
       parseErrors: totals.parseErrors + file.parseErrors,
     }),
@@ -221,6 +235,7 @@ function buildTotals(fileSummaries) {
       bytes: 0,
       events: 0,
       btcEvents: 0,
+      btcLiquidationEvents: 0,
       liquidationEvents: 0,
       parseErrors: 0,
     },
@@ -233,6 +248,7 @@ function printSummary(report) {
   console.log(`Bytes: ${report.totals.bytes}`)
   console.log(`Events: ${report.totals.events}`)
   console.log(`BTC events: ${report.totals.btcEvents}`)
+  console.log(`BTC liquidation events: ${report.totals.btcLiquidationEvents}`)
   console.log(`Liquidation events: ${report.totals.liquidationEvents}`)
   console.log(`Parse errors: ${report.totals.parseErrors}`)
 }

@@ -14,6 +14,18 @@ function buildBinanceWsEndpoints(instruments) {
 
   return [
     createWsEndpoint(
+      'spot_trades',
+      'trade',
+      `wss://stream.binance.com:9443/ws/${spotSymbol}@trade`,
+      ['e', 'E', 's', 'p', 'q', 'T', 'm'],
+    ),
+    createWsEndpoint(
+      'perp_trades',
+      'trade',
+      `wss://fstream.binance.com/ws/${perpSymbol}@trade`,
+      ['e', 'E', 'T', 's', 'p', 'q', 'm'],
+    ),
+    createWsEndpoint(
       'spot_depth_delta',
       'book_delta',
       `wss://stream.binance.com:9443/ws/${spotSymbol}@depth@100ms`,
@@ -42,6 +54,26 @@ function buildOkxWsEndpoints(instruments) {
   const perpSymbol = perp?.providerSymbols?.okx
 
   return [
+    createWsEndpoint(
+      'spot_trades',
+      'trade',
+      'wss://ws.okx.com:8443/ws/v5/public',
+      ['arg', 'data'],
+      {
+        subscribe: { op: 'subscribe', args: [{ channel: 'trades', instId: spotSymbol }] },
+        ignoreSubscriptionAck: true,
+      },
+    ),
+    createWsEndpoint(
+      'perp_trades',
+      'trade',
+      'wss://ws.okx.com:8443/ws/v5/public',
+      ['arg', 'data'],
+      {
+        subscribe: { op: 'subscribe', args: [{ channel: 'trades', instId: perpSymbol }] },
+        ignoreSubscriptionAck: true,
+      },
+    ),
     createWsEndpoint(
       'spot_books_delta',
       'book_delta',
@@ -82,7 +114,7 @@ export function buildWsProviderPlans(market) {
       provider: 'binance',
       venue: 'binance',
       coverageNotes: [
-        'WebSocket probe covers depth delta and futures forceOrder liquidation stream reachability.',
+        'WebSocket probe covers trades, depth delta, and futures forceOrder liquidation stream reachability.',
         'Liquidation streams can connect without emitting a sample during quiet windows.',
       ],
       endpoints: buildBinanceWsEndpoints(market.instruments),
@@ -91,7 +123,7 @@ export function buildWsProviderPlans(market) {
       provider: 'okx',
       venue: 'okx',
       coverageNotes: [
-        'WebSocket probe covers books delta and liquidation-orders public channel reachability.',
+        'WebSocket probe covers trades, books delta, and liquidation-orders public channel reachability.',
         'Liquidation streams can acknowledge subscription without emitting liquidation data during quiet windows.',
       ],
       endpoints: buildOkxWsEndpoints(market.instruments),
@@ -164,5 +196,5 @@ function findMissingPhase0EventTypes(endpointResults) {
       .map((result) => result.eventType),
   )
 
-  return ['book_delta', 'liquidation'].filter((eventType) => !covered.has(eventType))
+  return ['trade', 'book_delta', 'liquidation'].filter((eventType) => !covered.has(eventType))
 }

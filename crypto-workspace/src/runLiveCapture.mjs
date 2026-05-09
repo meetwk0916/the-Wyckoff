@@ -56,6 +56,7 @@ async function captureStream(stream, options, startedAt) {
   const writer = createWriteStream(outputPath, { flags: 'a' })
   let socket
   let receivedMessages = 0
+  let filteredMessages = 0
   let writtenEvents = 0
   let subscriptionAck = false
   let lastEventAt = ''
@@ -96,7 +97,13 @@ async function captureStream(stream, options, startedAt) {
         }
       }
 
-      const event = buildCaptureEvent(stream, payload)
+      const filteredPayload = filterPayloadForStream(stream, payload)
+      if (!filteredPayload) {
+        filteredMessages += 1
+        continue
+      }
+
+      const event = buildCaptureEvent(stream, filteredPayload)
       writer.write(`${JSON.stringify(event)}\n`)
       writtenEvents += 1
       lastEventAt = event.receivedAt
@@ -121,12 +128,75 @@ async function captureStream(stream, options, startedAt) {
     outputPath,
     durationMs: Date.now() - streamStartedAt,
     receivedMessages,
+    filteredMessages,
     writtenEvents,
     subscriptionAck,
     lastEventAt,
     status: error ? 'error' : writtenEvents > 0 ? 'captured' : 'connected_no_sample',
     error,
   }
+}
+
+function filterPayloadForStream(stream, payload) {
+  if (stream.eventType !== 'liquidation') {
+    return payload
+  }
+
+  const targetSymbols = buildTargetSymbols(stream)
+  if (targetSymbols.length === 0) {
+    return payload
+  }
+
+  if (Array.isArray(payload?.data)) {
+    const filteredData = payload.data.filter((item) => itemMatchesTargetSymbols(item, targetSymbols))
+    if (filteredData.length === 0) {
+      return null
+    }
+    return { ...payload, data: filteredData }
+  }
+
+  if (itemMatchesTargetSymbols(payload, targetSymbols)) {
+    return payload
+  }
+
+  return null
+}
+
+function buildTargetSymbols(stream) {
+  const targets = new Set()
+  addTargetSymbol(targets, stream.symbol)
+  addTargetSymbol(targets, stream.providerSymbol)
+
+  if (typeof stream.providerSymbol === 'string' && stream.providerSymbol.endsWith('-SWAP')) {
+    addTargetSymbol(targets, stream.providerSymbol.replace('-SWAP', ''))
+  }
+
+  return Array.from(targets)
+}
+
+function addTargetSymbol(targets, symbol) {
+  if (typeof symbol === 'string' && symbol) {
+    targets.add(normalizeSymbolText(symbol))
+  }
+}
+
+function itemMatchesTargetSymbols(item, targetSymbols) {
+  const symbols = [
+    item?.s,
+    item?.o?.s,
+    item?.instId,
+    item?.instFamily,
+    item?.uly,
+  ].map(normalizeSymbolText).filter(Boolean)
+
+  return symbols.some((symbol) => targetSymbols.includes(symbol))
+}
+
+function normalizeSymbolText(symbol) {
+  if (typeof symbol !== 'string') {
+    return ''
+  }
+  return symbol.toUpperCase().replace(/[^A-Z0-9]/g, '')
 }
 
 function buildCaptureEvent(stream, payload) {

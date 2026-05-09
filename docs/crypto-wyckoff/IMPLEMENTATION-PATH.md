@@ -172,3 +172,18 @@
 6. 不购买 Tardis.dev 的当前阶段，运行 `npm run crypto:capture -- --duration-sec=86400 --event-type=liquidation` 做 24h 免费源 capture，验证 liquidation 样本可得性。
 7. 并行验证 CoinGlass 低价层是否能补全全网清算 / OI / Funding / 热力图 API。
 8. 等本地 replay 样本不足成为真实瓶颈时，再重新评估 Tardis.dev / Kaiko。
+
+## 当前已新增的 Phase 2 入口
+
+本地 JSONL 回放入口已经可用：
+
+```bash
+npm run crypto:replay -- --event-type=liquidation --symbol=BTC
+npm run crypto:replay -- --start=2026-05-07T14:30:00Z --end=2026-05-07T14:40:00Z --event-type=liquidation --symbol=BTC
+```
+
+当前它只做时间窗、provider、event type 和 symbol 过滤，并输出可复核的样本报告；还不承担 Phase C 结构判断。这样可以先确认 capture 数据是否足够形成 BTC 插针窗口，再决定是否补洗盘过滤器。
+
+采集侧也已对 OKX 这类全市场清算频道做 BTC instrument 过滤：非 BTC liquidation 消息只计入 capture report 的 `filteredMessages`，不再写入本地 JSONL 作为 BTC 回放样本。
+
+回放报告会输出 instrument 覆盖、延迟摘要和 `evidence.minimumPhaseCReady`。其中 `minimumPhaseCReady` 只表示窗口内同时存在 `book_delta` 和 `liquidation` 两类 BTC 证据；它不是 Spring 信号。当前 capture 已支持 BTC spot/perp trade 流，作为后续 CVD 的原始输入；真正进入 Phase C 洗盘过滤器前，还需要补齐 OI / Funding，并拿到真实 BTC liquidation 样本。

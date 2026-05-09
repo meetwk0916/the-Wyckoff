@@ -13,7 +13,8 @@
     "crypto:probe": "node crypto-workspace/src/runProviderProbe.mjs",
     "crypto:ws-probe": "node crypto-workspace/src/runWsProbe.mjs",
     "crypto:capture": "node crypto-workspace/src/runLiveCapture.mjs",
-    "crypto:capture:status": "node crypto-workspace/src/runCaptureStatus.mjs"
+    "crypto:capture:status": "node crypto-workspace/src/runCaptureStatus.mjs",
+    "crypto:replay": "node crypto-workspace/src/runReplayWindow.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.542.0",
