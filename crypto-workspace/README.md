@@ -72,6 +72,13 @@ Capture trade streams:
 npm run crypto:capture -- --duration-sec=60 --event-type=trade
 ```
 
+Capture REST derivatives state snapshots:
+
+```bash
+npm run crypto:rest-capture
+npm run crypto:rest-capture -- --provider=okx --event-type=derivatives_state
+```
+
 Long liquidation capture:
 
 ```bash
@@ -97,7 +104,7 @@ npm run crypto:replay -- --start=2026-05-07T14:30:00Z --end=2026-05-07T14:40:00Z
 ```
 
 Replay reports are written to `crypto-workspace/reports/replay-window-last.json`. When provider payloads contain their own instrument symbols, replay filtering uses those payload symbols first; this avoids treating OKX full-market liquidation messages as BTC events just because the stream itself is aggregate.
-The replay report also includes instrument coverage, latency summary, and an `evidence` block. `minimumPhaseCReady` only means the selected window has both `book_delta` and `liquidation`; it is still not a Spring signal. Trade coverage is the base layer for later spot/perp CVD, but CVD calculation is intentionally not part of this capture step.
+The replay report also includes instrument coverage, latency summary, and an `evidence` block. `minimumPhaseCReady` only means the selected window has both `book_delta` and `liquidation`; it is still not a Spring signal. Trade coverage is the base layer for later spot/perp CVD, and REST derivatives snapshots provide OI/Funding context, but CVD and Phase C classification are intentionally not part of this capture step.
 
 ## Phase 0 Exit Criteria
 

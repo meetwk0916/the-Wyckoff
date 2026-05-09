@@ -11,6 +11,7 @@
     "ptrade:bridge": "node server/ptradeBridge.mjs",
     "crypto:probe": "node crypto-workspace/src/runProviderProbe.mjs",
     "crypto:ws-probe": "node crypto-workspace/src/runWsProbe.mjs",
+    "crypto:rest-capture": "node crypto-workspace/src/runRestCapture.mjs",
     "crypto:capture": "node crypto-workspace/src/runLiveCapture.mjs",
     "crypto:capture:status": "node crypto-workspace/src/runCaptureStatus.mjs",
     "crypto:replay": "node crypto-workspace/src/runReplayWindow.mjs"
