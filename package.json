@@ -16,7 +16,8 @@
     "crypto:capture:status": "node crypto-workspace/src/runCaptureStatus.mjs",
     "crypto:replay": "node crypto-workspace/src/runReplayWindow.mjs",
     "crypto:fixtures": "node crypto-workspace/src/runReplayFixtures.mjs",
-    "crypto:phase-c:evidence": "node crypto-workspace/src/runPhaseCEvidence.mjs"
+    "crypto:phase-c:evidence": "node crypto-workspace/src/runPhaseCEvidence.mjs",
+    "crypto:phase-c:classify": "node crypto-workspace/src/runPhaseCClassify.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.542.0",
