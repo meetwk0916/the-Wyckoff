@@ -17,8 +17,8 @@ BTC / crypto 方向是独立工作面，先阅读 `docs/crypto-wyckoff/README.md
 3. `docs/wyckoff-mvp/IMPLEMENTATION-PATH.md`
 4. `docs/wyckoff-mvp/MVP.md`
 5. `docs/wyckoff-mvp/TEST-CASES.md`
-6. `docs/wyckoff-mvp/PTRADE-INTEGRATION.md`
-7. `docs/wyckoff-mvp/PTRADE-TRADING.md`
+6. 如处理 ptrade 路线，先读 `docs/ptrade-wyckoff/README.md`、`GOALS.md`、`IMPLEMENTATION-PATH.md` 和 `NO-HTTP-DATA-EXCHANGE.md`
+7. 如需要 ptrade 操作细节，再读 `docs/wyckoff-mvp/PTRADE-TRADING.md`、`PTRADE-INTEGRATION.md` 和 `PTRADE-VALIDATION.md`
 8. 如处理 BTC / crypto 路线，再读 `docs/crypto-wyckoff/README.md` 和 `crypto-workspace/README.md`
 
 ## 当前状态
@@ -34,7 +34,7 @@ BTC / crypto 方向是独立工作面，先阅读 `docs/crypto-wyckoff/README.md
 - 已在实际 ptrade 环境验证 `get_research_path()` + JSON + sqlite3 的 Phase 0 无 HTTP 基线，`ptrade_phase1_validation.py` 默认先走本地持久化
 - Windows relay 仅保留为客户端本地联调工具，不再默认视为 ptrade 真正运行环境的目标地址
 - 当前默认以 soft gate 方式允许无 L2 / 逐笔环境下降级回测；真实交易时段权限验证仍未完成
-- 当前没有后端，也没有券商接入
+- 当前没有生产后端，也没有真实券商上游接入；仓库内已有本地 ptrade bridge / relay 联调工具
 - BTC / crypto 方向已有 `crypto-workspace/`，包含 REST / WebSocket 探测、capture、replay、fixture、Phase C evidence 和 Phase C classification 工具
 - 当前 BTC 固定 fixture 中，真实清算窗口被分类为 `short_squeeze_only`，无清算对照窗口被分类为 `insufficient_evidence`；当前还没有 `spring_candidate` 样本
 - 手工验收用例已整理完毕
@@ -45,6 +45,8 @@ BTC / crypto 方向是独立工作面，先阅读 `docs/crypto-wyckoff/README.md
 - `npm run dev`
 - `npm run lint`
 - `npm run build`
+- `npm run ptrade:relay`
+- `npm run ptrade:bridge`
 - `npm run crypto:fixtures`
 - `npm run crypto:phase-c:evidence`
 - `npm run crypto:phase-c:classify`
