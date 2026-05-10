@@ -192,3 +192,20 @@ npm run crypto:replay -- --start=2026-05-07T14:30:00Z --end=2026-05-07T14:40:00Z
 
 - `okx-btc-liquidation-2026-05-09T12-14Z`：包含 trade、book_delta、OI、Funding 和 1 条 BTC liquidation，用于后续 Phase C evidence 聚合。
 - `okx-btc-no-liquidation-2026-05-09T12-33Z`：包含 trade、book_delta、OI 和 Funding，但无 BTC liquidation，用作对照窗口。
+
+Phase C evidence 聚合入口已经可用：
+
+```bash
+npm run crypto:phase-c:evidence
+npm run crypto:phase-c:evidence -- --fixture=okx-btc-liquidation-2026-05-09T12-14Z
+```
+
+当前阶段只输出 price action、trade flow、book recovery、liquidation spike、OI 和 Funding 上下文；它不把窗口判定为 Spring，也不输出交易动作。
+
+Phase C 候选分类入口已经可用：
+
+```bash
+npm run crypto:phase-c:classify
+```
+
+当前分类标签限制为 `spring_candidate`、`breakdown_risk`、`short_squeeze_only` 和 `insufficient_evidence`。短仓强平主导的窗口会先归为 `short_squeeze_only`，避免把单纯空头挤压误判成 Spring；缺少 liquidation 的窗口继续归为 `insufficient_evidence`。
