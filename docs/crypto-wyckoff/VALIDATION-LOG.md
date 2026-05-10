@@ -276,3 +276,30 @@ npm run crypto:capture -- --duration-sec=10 --event-type=liquidation
 - 已捕获 OKX 全 swap liquidation 样本。
 - 当前尚未捕获 BTC 专属 liquidation 样本。
 - 后续验证使用 `npm run crypto:capture:status` 作为固定入口。
+
+## 2026-05-10 Replay fixture 与 Phase C 分类验证
+
+### 新增固定入口
+
+```bash
+npm run crypto:fixtures
+npm run crypto:phase-c:evidence
+npm run crypto:phase-c:classify
+```
+
+### 当前 fixture
+
+- `okx-btc-liquidation-2026-05-09T12-14Z`：包含 trade、book_delta、OI、Funding 和 1 条 BTC liquidation。
+- `okx-btc-no-liquidation-2026-05-09T12-33Z`：包含 trade、book_delta、OI 和 Funding，但无 BTC liquidation。
+
+### 验证结果
+
+- `npm run crypto:fixtures`：2 passed / 0 failed。
+- `npm run crypto:phase-c:evidence`：2 个窗口中 1 个满足 Phase C 输入，1 个满足 full sensor 输入。
+- `npm run crypto:phase-c:classify`：0 个 `spring_candidate`，0 个 `breakdown_risk`，1 个 `short_squeeze_only`，1 个 `insufficient_evidence`。
+
+### 结论
+
+- 当前唯一真实 BTC 清算窗口是短仓强平主导，不能当成 Spring。
+- 分类器已能把空头挤压挡在 `short_squeeze_only`，避免误判为 `spring_candidate`。
+- 下一步需要扩充历史窗口，优先寻找多头强平主导、价格收回、盘口恢复的 Phase C 候选样本。

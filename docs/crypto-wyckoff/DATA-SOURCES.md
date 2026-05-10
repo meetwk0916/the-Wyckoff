@@ -1,6 +1,6 @@
 # BTC 数据源统一研究
 
-更新日期：2026-05-07
+更新日期：2026-05-10
 
 ## 结论
 
@@ -135,11 +135,11 @@ provider -> raw event -> normalized event -> local append-only store -> replay -
 
 ## 数据缺口优先级
 
-当前免费源已经能覆盖 BTC Wyckoff Sensor 的基础层：
+当前免费源已经能覆盖 BTC Wyckoff Sensor 的基础层，并已产出可回放的 OKX BTC fixture：
 
 - Binance / OKX REST：`trade`、`book_snapshot`、`open_interest`、`funding_rate`
 - Binance / OKX WebSocket：`book_delta`
-- Binance / OKX liquidation WebSocket：频道可连通，但短窗口未拿到样本
+- Binance / OKX liquidation WebSocket：频道可连通；OKX 已捕获 1 条 BTC 清算样本，当前样本属于短仓强平主导，分类为 `short_squeeze_only`
 
 剩余缺口按优先级排序如下。
 
@@ -164,9 +164,9 @@ provider -> raw event -> normalized event -> local append-only store -> replay -
 
 下一步：
 
-- 跑 24h 到 72h liquidation capture。
-- 在高波动窗口复跑 probe。
-- 把 liquidation 状态拆成 `channel_connected`、`sample_seen`、`sample_absent`，避免把“没样本”误判为“不可用”。
+- 继续扩充 replay fixture，优先寻找多头强平主导、价格收回、盘口恢复的窗口。
+- 在高波动窗口复跑 capture。
+- 把已有空头强平样本保留为 `short_squeeze_only` 对照，避免把空头挤压误判为 Spring。
 
 低成本补充：
 
@@ -259,7 +259,8 @@ provider -> raw event -> normalized event -> local append-only store -> replay -
 
 数据缺口不应让系统停止工作，而应影响置信度：
 
-- 缺 liquidation：允许输出 `spring_candidate_low_confidence`，不允许输出 `confirmed_spring`。
+- 缺 liquidation：输出 `insufficient_evidence`，不允许输出 `spring_candidate`。
+- 清算样本为空头强平主导：输出 `short_squeeze_only`，不允许输出 `spring_candidate`。
 - 缺全网聚合：报告标记 `coverage = limited_venues`。
 - 缺历史 replay：不输出策略胜率，只输出在线观察结果。
 - 缺清算热力图：不影响 Spring 事后确认，只影响猎杀位置预判。

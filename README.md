@@ -38,6 +38,13 @@ ptrade 当前首要功能清单：
 - ptrade 仍是把这套策略推进到受控自动化交易阶段的主试验场，但自动化执行必须建立在撤单重试、次日对账、审批和风控闸门完成之后。
 - BTC / crypto 方向已明确第一阶段不做实盘、不做左侧抄底机器人；先验证统一数据源、标准化事件契约和 Phase C 洗盘过滤器。
 
+截至 2026-05-10，BTC / crypto 方向已经进入可回放的 Phase C 早期验证：
+
+- `crypto-workspace/` 已实现公开 REST / WebSocket 探测、JSONL 落盘、replay window、固定 fixture、Phase C evidence 聚合和保守分类。
+- 当前固定两个 OKX BTC replay fixture：一个真实 BTC 清算窗口，一个无清算对照窗口。
+- 当前唯一真实清算窗口被分类为 `short_squeeze_only`，不是 `spring_candidate`；这说明系统已经能挡住“空头挤压误判成 Spring”的第一类风险。
+- 当前仍未完成结构支撑 / 阻力识别、正式 spot/perp CVD 判据、20 个历史窗口人工复核、Phase D LPS paper trade、P&F 仓位管理和 sandbox。
+
 ## 项目定位
 
 这个项目独立于现有聊天项目，只承载 Wyckoff Radar MVP 的前端原型与后续迭代。
@@ -200,3 +207,6 @@ PTRADE_MODE=upstream PTRADE_UPSTREAM_URL=http://172.19.46.143:19090 npm run ptra
 - `npm run preview`：本地预览构建结果
 - `npm run ptrade:relay`：启动最小 ptrade relay，接收 `POST /ptrade` 并暴露 `GET /health`、`GET /l2-order-flow`
 - `npm run ptrade:bridge`：启动 ptrade Phase 1 本地 bridge
+- `npm run crypto:fixtures`：运行固定 BTC replay fixture 检查
+- `npm run crypto:phase-c:evidence`：从 fixture / 时间窗生成 Phase C 证据报告
+- `npm run crypto:phase-c:classify`：把 Phase C 证据保守分类为候选 / 风险 / 空头挤压 / 证据不足
