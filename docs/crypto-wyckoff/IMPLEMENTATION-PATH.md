@@ -35,15 +35,24 @@
 
 ## Phase 1：Crypto Sensor
 
-目标：新增 `crypto-workspace/`，实现 BTC 数据采集、标准化和落盘。
+目标：维护 `crypto-workspace/`，实现 BTC 数据采集、标准化和落盘。
 
-待实现：
+已实现：
 
 - `crypto-workspace/README.md`
 - `crypto-workspace/config/markets.json`
-- `crypto-workspace/src/provider/*`
-- `crypto-workspace/src/normalize/*`
 - `crypto-workspace/data/README.md`
+- REST / WebSocket provider probe
+- live capture / REST derivatives capture
+- replay window / fixture runner
+- Phase C evidence / classification runner
+
+待实现：
+
+- 更完整的 normalized transform 层
+- 结构支撑 / 阻力识别
+- spot CVD / perp CVD 正式判据
+- replay 样本库扩充和人工复核索引
 
 最小采集对象：
 
@@ -65,13 +74,19 @@
 
 目标：把采集到的数据变成可重放的市场录像。
 
-待实现：
+已实现：
 
 - append-only 本地事件存储
-- replay cursor
 - symbol / venue / event type 过滤
-- 时间窗口 join
 - 数据质量报告
+- 固定 replay fixture 检查
+- Phase C evidence 聚合入口
+
+待实现：
+
+- 更正式的 replay cursor
+- 多流时间窗口 join 对象
+- 历史窗口索引与人工复核清单
 
 退出标准：
 
