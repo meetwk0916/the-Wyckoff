@@ -6,6 +6,8 @@
 
 对于 ptrade 相关能力，当前路线已经收敛为四段：Phase 0 环境预检查、Phase 1 原生回测 / 模拟盘 / 交易报告闭环、Phase 2 L2 / 逐笔增强与统一契约、Phase 3 自动交易与执行闭环。
 
+ptrade 详细目标、硬闸门和当前优先级统一维护在 `../ptrade-wyckoff/`；本文件只保留前端工作台需要对齐的节奏和接口消费视角。
+
 ## 冲刺 1：雷达 MVP
 
 目标：先交付一个可用的监控控制台，让策略状态能够被看见，而不依赖真实券商或市场数据集成。
@@ -58,13 +60,14 @@
 
 - `ptrade_phase1_validation.py` 环境预检查脚本
 - `ptrade-workspace/strategy/ptrade_wyckoff_trader.py` 作为唯一主策略脚本
+- 研究目录 JSON / sqlite3 的无 HTTP 默认落盘基线
 - 基于 `order` / `get_open_orders` / `get_trades` / `get_positions` 的最小执行闭环
 - 日终 JSON 交易报告与 pickle 状态记忆
 - 在微观数据不可用时自动降级且不重复刷 warning 的能力探测逻辑
 
 完成标准：
 
-- Phase 0 能确认账号绑定、本地落盘、L2 权限和网络边界
+- Phase 0 能确认账号绑定、研究目录 JSON / sqlite3 落盘、L2 权限和网络边界
 - 同一份策略代码可以在回测和模拟盘里运行
 - 日终可以稳定输出信号、决策、订单、成交、持仓和状态记忆
 - 回测报告能明确区分 `data available`、`confirmed` 和 `gate ready`

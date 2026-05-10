@@ -31,6 +31,8 @@ BTC / crypto 方向是独立工作面，先阅读 `docs/crypto-wyckoff/README.md
 - ptrade 内唯一应复制和运行的主脚本为 `ptrade-workspace/strategy/ptrade_wyckoff_trader.py`
 - ptrade 策略侧已接入静态标的池、长周期量价、RS / Beta、L2 订单簿失衡、逐笔 CVD 和 pickle 状态记忆
 - 已完成 canonical ptrade 脚本的一轮真实参数回测，已验证报告 / 状态记忆 / 试仓升级 / runner 重锚主路径
+- 已在实际 ptrade 环境验证 `get_research_path()` + JSON + sqlite3 的 Phase 0 无 HTTP 基线，`ptrade_phase1_validation.py` 默认先走本地持久化
+- Windows relay 仅保留为客户端本地联调工具，不再默认视为 ptrade 真正运行环境的目标地址
 - 当前默认以 soft gate 方式允许无 L2 / 逐笔环境下降级回测；真实交易时段权限验证仍未完成
 - 当前没有后端，也没有券商接入
 - BTC / crypto 方向已有 `crypto-workspace/`，包含 REST / WebSocket 探测、capture、replay、fixture、Phase C evidence 和 Phase C classification 工具

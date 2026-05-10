@@ -1,0 +1,78 @@
+{
+  "lastIngestAt": "2026-05-08T07:24:21.453645+00:00",
+  "lastPayload": {
+    "kind": "ptrade-phase1-validation",
+    "phase": "live",
+    "generatedAt": "2026-05-08 15:10:00",
+    "symbol": "600570.XSHG",
+    "businessType": "stock",
+    "account": {
+      "status": "ok"
+    },
+    "l2": {
+      "status": "confirmed",
+      "message": "ok",
+      "topBid": {
+        "price": 27.63,
+        "volume": 16100,
+        "orders": 16
+      },
+      "topAsk": {
+        "price": 27.64,
+        "volume": 6400,
+        "orders": 3
+      },
+      "transactionSample": [
+        20260508145347230,
+        27.63,
+        300,
+        40822774,
+        0
+      ]
+    },
+    "outbound": {
+      "status": "success"
+    }
+  },
+  "lastOrderFlowsBySymbol": {
+    "600570.XSHG": {
+      "symbol": "600570.XSHG",
+      "capturedAt": "2026-05-08T07:10:00+00:00",
+      "source": "ptrade-validation-relay",
+      "venue": "stock",
+      "depthLevels": 1,
+      "bids": [
+        {
+          "price": 27.63,
+          "volume": 16100,
+          "orders": 16
+        }
+      ],
+      "asks": [
+        {
+          "price": 27.64,
+          "volume": 6400,
+          "orders": 3
+        }
+      ],
+      "tape": [
+        {
+          "time": "14:53:47.230",
+          "side": "BUY",
+          "price": 27.63,
+          "volume": 300
+        }
+      ],
+      "spreadBps": 3.62,
+      "imbalance": 0.7156,
+      "validation": {
+        "kind": "ptrade-phase1-validation",
+        "phase": "live",
+        "l2Status": "confirmed",
+        "l2Message": "ok",
+        "outboundStatus": "success",
+        "accountStatus": "ok"
+      }
+    }
+  }
+}

@@ -8,6 +8,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "ptrade:relay": "node server/ptradeRelay.mjs",
     "ptrade:bridge": "node server/ptradeBridge.mjs",
     "crypto:probe": "node crypto-workspace/src/runProviderProbe.mjs",
     "crypto:ws-probe": "node crypto-workspace/src/runWsProbe.mjs",

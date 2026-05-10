@@ -1,4 +1,11 @@
 import json
+import socket
+from urllib.parse import urlparse
+
+try:
+    import sqlite3
+except Exception:
+    sqlite3 = None
 
 try:
     import requests
@@ -11,8 +18,12 @@ LIVE_TRADE_STATES = ['PRETR', 'OCALL', 'TRADE', 'POSMT', 'PCALL']
 
 def initialize(context):
     g.symbol = '600570.XSHG'
-    g.validation_target = 'https://httpbin.org/post'
+    g.validation_target = ''
+    g.validation_targets = []
     g.validation_file = 'ptrade-phase1-validation-last.json'
+    g.validation_sqlite_enabled = True
+    g.validation_sqlite_file = 'ptrade-phase1-validation.sqlite3'
+    g.validation_sqlite_table = 'phase1_validation_runs'
     g.smoke_test_enabled = False
     g.smoke_test_done = False
     g.validation_done = False
@@ -199,22 +210,115 @@ def build_skipped_l2_status(message):
 
 
 def probe_outbound_http(result):
+    targets = collect_validation_targets()
     outbound = {
-        'target': g.validation_target,
+        'target': '',
+        'targets': targets,
+        'targetCount': len(targets),
+        'successfulTarget': '',
+        'attempts': [],
         'status': 'skipped',
+        'failureStage': '',
         'httpStatus': None,
         'responsePreview': '',
         'error': '',
+        'targetInfo': {
+            'scheme': '',
+            'host': '',
+            'port': None,
+            'path': '',
+        },
+        'dnsStatus': 'skipped',
+        'resolvedAddresses': [],
+        'tcpStatus': 'skipped',
+        'tcpConnectedAddress': None,
+        'requestStatus': 'skipped',
     }
 
-    if not g.validation_target:
-        outbound['error'] = 'validation_target 为空，已跳过出站 HTTP 验证。'
+    if not targets:
+        outbound['failureStage'] = 'skipped'
+        outbound['error'] = 'validation_target 为空，已跳过出站 HTTP 验证；Phase 0 默认优先写本地文件和 sqlite。'
+        return outbound
+
+    best_attempt = None
+    for target in targets:
+        attempt = probe_single_outbound_target(target, result)
+        outbound['attempts'].append(attempt)
+
+        if best_attempt is None:
+            best_attempt = attempt
+
+        if should_replace_outbound_summary(best_attempt, attempt):
+            best_attempt = attempt
+
+        if attempt['status'] == 'success':
+            outbound['successfulTarget'] = attempt['target']
+            merge_outbound_summary(outbound, attempt)
+            return outbound
+
+    if best_attempt is not None:
+        merge_outbound_summary(outbound, best_attempt)
+
+    return outbound
+
+
+def probe_single_outbound_target(target, result):
+    outbound = {
+        'target': target,
+        'status': 'skipped',
+        'failureStage': '',
+        'httpStatus': None,
+        'responsePreview': '',
+        'error': '',
+        'targetInfo': {
+            'scheme': '',
+            'host': '',
+            'port': None,
+            'path': '',
+        },
+        'dnsStatus': 'skipped',
+        'resolvedAddresses': [],
+        'tcpStatus': 'skipped',
+        'tcpConnectedAddress': None,
+        'requestStatus': 'skipped',
+    }
+
+    target_info = parse_validation_target(target)
+    outbound['targetInfo'] = target_info
+
+    if not target_info['scheme'] or not target_info['host'] or not target_info['port']:
+        outbound['status'] = 'error'
+        outbound['failureStage'] = 'target'
+        outbound['error'] = 'validation_target 格式无效，请使用 http://host/path 或 https://host/path。'
         return outbound
 
     if requests is None:
         outbound['status'] = 'error'
+        outbound['failureStage'] = 'requests_import'
         outbound['error'] = 'requests 不可用，无法执行出站 HTTP 验证。'
         return outbound
+
+    dns_candidates, dns_error = resolve_host_candidates(target_info['host'], target_info['port'])
+    if dns_error:
+        outbound['status'] = 'error'
+        outbound['failureStage'] = 'dns'
+        outbound['dnsStatus'] = 'error'
+        outbound['error'] = 'DNS 解析失败: {0}'.format(dns_error)
+        return outbound
+
+    outbound['dnsStatus'] = 'success'
+    outbound['resolvedAddresses'] = extract_resolved_addresses(dns_candidates)
+
+    tcp_connected_address, tcp_error = probe_tcp_connect(dns_candidates)
+    if tcp_error:
+        outbound['status'] = 'error'
+        outbound['failureStage'] = 'tcp'
+        outbound['tcpStatus'] = 'error'
+        outbound['error'] = 'TCP 连接失败: {0}'.format(tcp_error)
+        return outbound
+
+    outbound['tcpStatus'] = 'success'
+    outbound['tcpConnectedAddress'] = tcp_connected_address
 
     payload = {
         'kind': result.get('kind'),
@@ -228,8 +332,9 @@ def probe_outbound_http(result):
     }
 
     try:
+        outbound['requestStatus'] = 'running'
         response = requests.post(
-            g.validation_target,
+            target,
             data=json.dumps(payload, ensure_ascii=False).encode('utf-8'),
             headers={'Content-Type': 'application/json; charset=utf-8'},
             timeout=5,
@@ -238,20 +343,100 @@ def probe_outbound_http(result):
         outbound['httpStatus'] = response.status_code
         outbound['responsePreview'] = response.text[:200]
         outbound['status'] = 'success'
+        outbound['requestStatus'] = 'success'
 
         if response.status_code >= 400:
             outbound['status'] = 'error'
+            outbound['failureStage'] = 'http_status'
+            outbound['requestStatus'] = 'error'
             outbound['error'] = 'HTTP {0}'.format(response.status_code)
 
         return outbound
     except Exception as error:
         outbound['status'] = 'error'
+        outbound['failureStage'] = 'http'
+        outbound['requestStatus'] = 'error'
         outbound['error'] = str(error)
         return outbound
 
 
+def collect_validation_targets():
+    targets = []
+
+    configured_targets = getattr(g, 'validation_targets', None)
+    if isinstance(configured_targets, (list, tuple)):
+        for target in configured_targets:
+            normalized = normalize_validation_target(target)
+            if normalized and normalized not in targets:
+                targets.append(normalized)
+
+    fallback_target = normalize_validation_target(getattr(g, 'validation_target', ''))
+    if fallback_target and fallback_target not in targets:
+        targets.append(fallback_target)
+
+    return targets
+
+
+def normalize_validation_target(target):
+    if target is None:
+        return ''
+
+    try:
+        return str(target).strip()
+    except Exception:
+        return ''
+
+
+def merge_outbound_summary(summary, attempt):
+    summary['target'] = attempt.get('target', '')
+    summary['status'] = attempt.get('status', 'error')
+    summary['failureStage'] = attempt.get('failureStage', '')
+    summary['httpStatus'] = attempt.get('httpStatus')
+    summary['responsePreview'] = attempt.get('responsePreview', '')
+    summary['error'] = attempt.get('error', '')
+    summary['targetInfo'] = attempt.get('targetInfo', {})
+    summary['dnsStatus'] = attempt.get('dnsStatus', 'skipped')
+    summary['resolvedAddresses'] = attempt.get('resolvedAddresses', [])
+    summary['tcpStatus'] = attempt.get('tcpStatus', 'skipped')
+    summary['tcpConnectedAddress'] = attempt.get('tcpConnectedAddress')
+    summary['requestStatus'] = attempt.get('requestStatus', 'skipped')
+
+
+def should_replace_outbound_summary(current_attempt, candidate_attempt):
+    current_score = score_outbound_attempt(current_attempt)
+    candidate_score = score_outbound_attempt(candidate_attempt)
+
+    if candidate_score != current_score:
+        return candidate_score > current_score
+
+    return False
+
+
+def score_outbound_attempt(attempt):
+    if not isinstance(attempt, dict):
+        return -1
+
+    if attempt.get('status') == 'success':
+        return 100
+
+    failure_stage = attempt.get('failureStage', '')
+    stage_scores = {
+        'http_status': 90,
+        'http': 80,
+        'tcp': 70,
+        'dns': 60,
+        'requests_import': 50,
+        'target': 40,
+        'skipped': 10,
+    }
+
+    return stage_scores.get(failure_stage, 0)
+
+
 def persist_and_log(result):
-    result['localResultPath'] = get_research_path() + g.validation_file
+    result['localResultPath'] = build_local_persist_path(g.validation_file)
+    result['localSqlitePath'] = build_sqlite_path()
+    result['localSqliteTable'] = getattr(g, 'validation_sqlite_table', 'phase1_validation_runs')
 
     try:
         with open(result['localResultPath'], 'w') as handler:
@@ -259,7 +444,104 @@ def persist_and_log(result):
     except Exception as error:
         result['localPersistError'] = str(error)
 
+    persist_result_to_sqlite(result)
+
     log.info('Wyckoff ptrade validation => {0}'.format(json.dumps(result, ensure_ascii=False)))
+
+
+def build_local_persist_path(filename):
+    return get_research_path() + filename
+
+
+def build_sqlite_path():
+    return build_local_persist_path(getattr(g, 'validation_sqlite_file', 'ptrade-phase1-validation.sqlite3'))
+
+
+def persist_result_to_sqlite(result):
+    if not bool(getattr(g, 'validation_sqlite_enabled', True)):
+        result['localSqliteStatus'] = 'disabled'
+        return
+
+    if sqlite3 is None:
+        result['localSqliteStatus'] = 'unavailable'
+        result['localSqliteError'] = 'sqlite3 不可用，已跳过 sqlite 持久化。'
+        return
+
+    connection = None
+    try:
+        connection = sqlite3.connect(result['localSqlitePath'])
+        cursor = connection.cursor()
+        table_name = normalize_sqlite_identifier(result['localSqliteTable'])
+
+        cursor.execute(
+            'CREATE TABLE IF NOT EXISTS {0} ('
+            'id INTEGER PRIMARY KEY AUTOINCREMENT, '
+            'generated_at TEXT NOT NULL, '
+            'phase TEXT NOT NULL, '
+            'symbol TEXT NOT NULL, '
+            'account_status TEXT, '
+            'l2_status TEXT, '
+            'outbound_status TEXT, '
+            'outbound_failure_stage TEXT, '
+            'payload_json TEXT NOT NULL'
+            ')'.format(table_name)
+        )
+        cursor.execute(
+            'INSERT INTO {0} ('
+            'generated_at, phase, symbol, account_status, l2_status, outbound_status, outbound_failure_stage, payload_json'
+            ') VALUES (?, ?, ?, ?, ?, ?, ?, ?)'.format(table_name),
+            (
+                safe_string(result.get('generatedAt')),
+                safe_string(result.get('phase')),
+                safe_string(result.get('symbol')),
+                safe_string((result.get('account') or {}).get('status')),
+                safe_string((result.get('l2') or {}).get('status')),
+                safe_string((result.get('outbound') or {}).get('status')),
+                safe_string((result.get('outbound') or {}).get('failureStage')),
+                json.dumps(result, ensure_ascii=False),
+            )
+        )
+        connection.commit()
+        result['localSqliteStatus'] = 'persisted'
+        result['localSqliteRowId'] = cursor.lastrowid
+    except Exception as error:
+        result['localSqliteStatus'] = 'error'
+        result['localSqliteError'] = str(error)
+    finally:
+        if connection is not None:
+            try:
+                connection.close()
+            except Exception:
+                pass
+
+
+def normalize_sqlite_identifier(value):
+    text = safe_string(value) or 'phase1_validation_runs'
+    normalized = []
+    for char in text:
+        if char.isalnum() or char == '_':
+            normalized.append(char)
+        else:
+            normalized.append('_')
+
+    identifier = ''.join(normalized).strip('_')
+    if not identifier:
+        return 'phase1_validation_runs'
+
+    if identifier[0].isdigit():
+        identifier = 't_' + identifier
+
+    return identifier
+
+
+def safe_string(value):
+    if value is None:
+        return ''
+
+    try:
+        return str(value)
+    except Exception:
+        return ''
 
 
 def fetch_transaction_payload(symbol):
@@ -267,6 +549,74 @@ def fetch_transaction_payload(symbol):
         return get_individual_transaction([symbol], data_count=5, is_dict=True)
     except NameError:
         return get_individual_transcation([symbol], data_count=5, is_dict=True)
+
+
+def parse_validation_target(target):
+    parsed = urlparse(target)
+    scheme = (parsed.scheme or '').lower()
+    host = parsed.hostname or ''
+    port = parsed.port
+
+    if port is None:
+        if scheme == 'https':
+            port = 443
+        elif scheme == 'http':
+            port = 80
+
+    return {
+        'scheme': scheme,
+        'host': host,
+        'port': port,
+        'path': parsed.path or '/',
+    }
+
+
+def resolve_host_candidates(host, port):
+    try:
+        return socket.getaddrinfo(host, port, 0, socket.SOCK_STREAM), ''
+    except Exception as error:
+        return [], str(error)
+
+
+def extract_resolved_addresses(candidates):
+    addresses = []
+    seen = set()
+
+    for candidate in candidates:
+        sockaddr = candidate[4]
+        if not isinstance(sockaddr, tuple) or not sockaddr:
+            continue
+
+        address = sockaddr[0]
+        if address in seen:
+            continue
+
+        seen.add(address)
+        addresses.append(address)
+
+    return addresses
+
+
+def probe_tcp_connect(candidates):
+    last_error = '未返回可连接地址。'
+
+    for family, socktype, proto, _canonname, sockaddr in candidates:
+        connection = None
+        try:
+            connection = socket.socket(family, socktype, proto)
+            connection.settimeout(3)
+            connection.connect(sockaddr)
+            return sockaddr[0], ''
+        except Exception as error:
+            last_error = str(error)
+        finally:
+            if connection is not None:
+                try:
+                    connection.close()
+                except Exception:
+                    pass
+
+    return None, last_error
 
 
 def unpack_dict_rows(payload, symbol):

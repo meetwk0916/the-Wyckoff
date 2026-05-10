@@ -10,6 +10,8 @@
 
 当前项目是独立的 Vite + React 前端工作区，不是生产系统，也不依赖任何后端。
 
+ptrade 路线已经迁移到 `../ptrade-wyckoff/GOALS.md` 和 `../ptrade-wyckoff/IMPLEMENTATION-PATH.md`；本文件只保留前端控制台 MVP 的阶段拆解和当前进度。
+
 ## 阶段 0：仓库基线与交接材料
 
 目标：保证项目已独立建仓、可编译、可交接，后续智能体进入后不需要重新整理上下文。
@@ -176,73 +178,13 @@
 - [ ] 增加更贴近策略语言的检查对象，例如 spring 质量、BUEC 复核、板块共振
 - [ ] 建立可追踪的状态转换审计视图
 
-## ptrade 对接分阶段
+## ptrade 文档迁移说明
 
-### Phase 0：环境预检查
+ptrade 路线现在有独立的文档目录，请从下面入口继续阅读：
 
-当前定位：已具备最小可用脚本，用于回测 / 模拟盘上线前检查。
-
-- [x] 已补充 `ptrade_phase1_validation.py`
-- [x] 已补充 `PTRADE-VALIDATION.md`
-- [x] 已验证账号绑定与本地落盘能力
-- [ ] 在真实交易时段补齐一轮 L2 权限和订阅验证
-
-### Phase 1：原生回测 + 模拟盘 + 交易报告
-
-当前定位：截至 2026-05-07，已完成首轮真实参数回测，当前从“策略能否跑通”转向“模拟盘闭环、交易时段微观确认、执行恢复与对账”。
-
-- [x] 已新增 `ptrade-workspace/strategy/ptrade_wyckoff_trader.py` 策略主脚本
-- [x] 已新增 `PTRADE-TRADING.md` 操作说明
-- [x] 已在策略内接入 `order`、`get_open_orders`、`get_trades`、`get_positions` 等最小闭环接口
-- [x] 已支持日终 JSON 报告落盘
-- [x] 已新增 `ptrade-workspace/` 隔离目录
-- [x] 已接入静态标的池、长周期量价、RS / Beta、L2 订单簿失衡、逐笔 CVD 和 pickle 状态记忆
-- [x] 用真实策略参数跑第一轮回测
-- [x] 已验证 flat-start 状态回收、pilot promotion、runner re-anchor、UTAD 收紧与趋势 runner 管理等关键非回归路径
-- [ ] 用模拟盘验证订单、成交、持仓和报告闭环
-- [ ] 在真实交易时段验证 L2 / 逐笔成交接口可用性
-- [ ] 增加基于 `cancel_order` 的超时撤单与重试策略
-- [ ] 增加基于 `get_deliver()` / `get_fundjour()` 的次日对账
-- [ ] 继续把当前启发式信号推进到完整 cause count 与失败结构识别
-
-### Phase 2：L2 / 逐笔订单流增强与统一契约
-
-当前定位：在 Phase 1 稳定后再推进。
-
-- [x] 已提供本地 `ptrade bridge` 服务骨架与 `/api/ptrade/health` 接口
-- [x] 已提供 `/api/ptrade/l2-order-flow` L2 订单流样例接口
-- [x] 已支持本地录制样例订单流，便于后续回放
-- [x] 已在前端界面展示 bridge 健康状态和 L2 联调面板
-- [ ] 明确 ptrade 环境中的 L2 数据来源、权限要求和标的订阅方式
-- [ ] 定义统一的 L2 订单流数据契约，避免 UI 或策略侧直接耦合原始返回
-- [ ] 定义逐笔成交 / CVD 数据契约
-- [ ] 建立 L2 订单流录制与回放能力，服务 Wyckoff 2.0 研究与验证
-- [ ] 在界面或系统状态中展示 L2 连接、延迟和数据新鲜度
-- [ ] 将 bridge 从 `mock` 模式切换到真实 ptrade 上游连接
-
-### Phase 3：实盘执行与风控闭环
-
-当前定位：最后阶段。
-
-- [ ] 在 Phase 1 与 Phase 2 稳定后，再进入实盘下单、撤单和执行反馈闭环
-- [ ] 先落人工审批与风控闸门，再考虑半自动与自动交易
-- [ ] 建立可审计的交易执行日志与失败恢复策略
-
-## 当前最优下一步
-
-优先顺序建议如下：
-
-1. ptrade Phase 1：在模拟盘验证订单、成交、持仓、报告与状态记忆闭环
-2. ptrade Phase 1：在真实交易时段验证 L2 / 逐笔成交权限，并确定严格微观确认的切换条件
-3. ptrade Phase 1：补 `cancel_order` 超时撤单 / 重报价与 `get_deliver()` / `get_fundjour()` 次日对账
-4. ptrade Phase 2：统一 L2 / 逐笔订单流契约、录制回放与 bridge 真上游
-5. 数据边界稳定化与自动化验证
-
-原因：
-
-- 首轮回测已经完成，当前最短板是模拟盘与执行恢复闭环，而不是继续追加新启发式。
-- 无 L2 / 逐笔不阻塞 Phase 1 跑通，但会显著削弱 Phase 2 研究质量和 Phase 3 自动化交易可信度。
-- ptrade 仍是把策略推进到完整自动化交易前的主试验场，必须先补齐撤单、对账和风险闸门。
+1. `../ptrade-wyckoff/README.md`
+2. `../ptrade-wyckoff/GOALS.md`
+3. `../ptrade-wyckoff/IMPLEMENTATION-PATH.md`
 
 ## 变更原则
 
@@ -260,9 +202,10 @@
 3. `docs/wyckoff-mvp/PRD.md`
 4. `docs/wyckoff-mvp/IMPLEMENTATION-PATH.md`
 5. `docs/wyckoff-mvp/TEST-CASES.md`
-6. `public/mock/wyckoff-dashboard.json`
-7. `src/lib/loadDashboardSnapshot.js`
-8. `src/App.jsx`
+6. `docs/ptrade-wyckoff/README.md`
+7. `public/mock/wyckoff-dashboard.json`
+8. `src/lib/loadDashboardSnapshot.js`
+9. `src/App.jsx`
 
 ## 当前发布前最低检查
 
