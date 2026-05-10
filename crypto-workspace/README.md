@@ -21,6 +21,7 @@ It is not a trading bot. It must not store exchange API keys or connect to funde
 - `src/runLiveCapture.mjs`: CLI entrypoint for short or long live JSONL captures.
 - `src/runReplayWindow.mjs`: CLI entrypoint for local JSONL replay windows.
 - `src/runReplayFixtures.mjs`: CLI entrypoint for pinned replay fixture checks.
+- `src/runPhaseCEvidence.mjs`: CLI entrypoint for Phase C evidence aggregation without Spring classification.
 - `data/README.md`: local market data boundary.
 - `reports/README.md`: generated provider probe report boundary.
 
@@ -115,6 +116,15 @@ npm run crypto:fixtures -- --fixture=okx-btc-liquidation-2026-05-09T12-14Z
 ```
 
 Fixture definitions live in `crypto-workspace/config/replay-fixtures.json`. Reports are written under `crypto-workspace/reports/fixtures/` and summarized in `crypto-workspace/reports/replay-fixtures-last.json`.
+
+Aggregate Phase C evidence from pinned fixtures:
+
+```bash
+npm run crypto:phase-c:evidence
+npm run crypto:phase-c:evidence -- --fixture=okx-btc-liquidation-2026-05-09T12-14Z
+```
+
+The evidence report is written to `crypto-workspace/reports/phase-c-evidence-last.json`. It reports observable price action, trade flow, book recovery, liquidation, OI, and Funding context. It does not classify Spring, LPS, or trade actions.
 
 ## Phase 0 Exit Criteria
 
