@@ -164,14 +164,14 @@
 
 ## 当前下一步
 
-1. 运行 `npm run crypto:probe` 生成 REST dry-run 供应商探测计划。
-2. 运行 `npm run crypto:ws-probe` 生成 WebSocket dry-run 频道探测计划。
-3. 在允许联网时运行 `npm run crypto:probe -- --live --provider=binance` 和 `npm run crypto:probe -- --live --provider=okx`。
-4. 在允许联网时运行 `npm run crypto:ws-probe -- --live --provider=binance` 和 `npm run crypto:ws-probe -- --live --provider=okx`。
-5. 对比 `crypto-workspace/reports/*probe-last.json`，确认公开实时源是否足够做 live fallback。
-6. 不购买 Tardis.dev 的当前阶段，运行 `npm run crypto:capture -- --duration-sec=86400 --event-type=liquidation` 做 24h 免费源 capture，验证 liquidation 样本可得性。
-7. 并行验证 CoinGlass 低价层是否能补全全网清算 / OI / Funding / 热力图 API。
-8. 等本地 replay 样本不足成为真实瓶颈时，再重新评估 Tardis.dev / Kaiko。
+截至 2026-05-10，REST / WebSocket 探测、落盘、replay、fixture、Phase C evidence 和保守分类入口已经可用。当前下一步不再是继续做基础 probe，而是扩充可复核样本和结构上下文：
+
+1. 扩充 Phase C 样本集，优先寻找 `long liquidation + 价格收回 + 盘口恢复` 的 BTC 窗口。
+2. 把结构支撑 / 阻力识别接入 evidence 对象，避免只凭微观流判断 Spring。
+3. 将当前 trade flow 升级为正式 spot CVD / perp CVD 判据。
+4. 保留 `short_squeeze_only` 保护，防止把空头挤压误判成 Spring。
+5. 至少做 20 个历史窗口人工复核，再进入 Phase D LPS paper trade。
+6. 当本地样本不足成为真实瓶颈时，再重新评估 Tardis.dev / Kaiko / CoinGlass 的历史数据。
 
 ## 当前已新增的 Phase 2 入口
 

@@ -2,12 +2,14 @@
 
 This workspace is the isolated BTC / crypto research lane.
 
-Its current job is Phase 0 provider validation:
+Its current job is the early BTC replay and Phase C classification lane:
 
-- define the normalized event contract
-- keep market symbols and provider symbols in one config
-- probe public data endpoints without API keys
-- write provider validation reports
+- keep the normalized event contract and market symbol mappings stable
+- probe and capture public exchange data without API keys
+- write append-only local JSONL data for replay
+- run pinned replay fixtures
+- aggregate Phase C evidence
+- conservatively classify candidates before any paper trade work
 
 It is not a trading bot. It must not store exchange API keys or connect to funded accounts.
 
@@ -141,3 +143,13 @@ The classification report is written to `crypto-workspace/reports/phase-c-classi
 - One live fallback exchange source is verified for delay and heartbeat behavior.
 - Any missing field is explicit in the report.
 - No strategy logic depends on provider-specific payload fields.
+
+## Current Status
+
+As of 2026-05-10:
+
+- Two pinned OKX BTC replay fixtures exist in `config/replay-fixtures.json`.
+- `npm run crypto:fixtures` passes both fixtures.
+- `npm run crypto:phase-c:evidence` emits one Phase C-ready evidence window and one insufficient-evidence control window.
+- `npm run crypto:phase-c:classify` classifies the current BTC liquidation window as `short_squeeze_only`, not `spring_candidate`.
+- The next BTC work is sample expansion and structural context, not trade execution.

@@ -8,7 +8,7 @@
 
 当前对接优先级已经明确：ptrade 相关能力按 Phase 0 环境预检查、Phase 1 回测 / 模拟盘 / 交易报告闭环、Phase 2 L2 / 逐笔增强与统一契约、Phase 3 实盘执行与风控闸门推进；当前主线是 Phase 1，真实 L2 / 逐笔权限验证属于紧随其后的 Phase 2 入口条件。
 
-BTC / crypto 方向是新的独立工作面，先阅读 `docs/crypto-wyckoff/README.md`、`GOALS.md`、`DATA-SOURCES.md`、`IMPLEMENTATION-PATH.md` 和 `VALIDATION-LOG.md`。它当前只做目标、数据源验证、事件契约、历史回放和 paper trade 路线设计，不接真实交易所资金账户。
+BTC / crypto 方向是独立工作面，先阅读 `docs/crypto-wyckoff/README.md`、`GOALS.md`、`DATA-SOURCES.md`、`IMPLEMENTATION-PATH.md` 和 `VALIDATION-LOG.md`，再看 `crypto-workspace/README.md`。它当前只做数据采集、事件契约、历史回放、Phase C 证据聚合、候选分类和 paper trade 路线设计，不接真实交易所资金账户。
 
 ## 优先阅读
 
@@ -19,7 +19,7 @@ BTC / crypto 方向是新的独立工作面，先阅读 `docs/crypto-wyckoff/REA
 5. `docs/wyckoff-mvp/TEST-CASES.md`
 6. `docs/wyckoff-mvp/PTRADE-INTEGRATION.md`
 7. `docs/wyckoff-mvp/PTRADE-TRADING.md`
-8. 如处理 BTC / crypto 路线，再读 `docs/crypto-wyckoff/README.md`
+8. 如处理 BTC / crypto 路线，再读 `docs/crypto-wyckoff/README.md` 和 `crypto-workspace/README.md`
 
 ## 当前状态
 
@@ -33,7 +33,8 @@ BTC / crypto 方向是新的独立工作面，先阅读 `docs/crypto-wyckoff/REA
 - 已完成 canonical ptrade 脚本的一轮真实参数回测，已验证报告 / 状态记忆 / 试仓升级 / runner 重锚主路径
 - 当前默认以 soft gate 方式允许无 L2 / 逐笔环境下降级回测；真实交易时段权限验证仍未完成
 - 当前没有后端，也没有券商接入
-- BTC / crypto 方向已有文档化目标和数据源研究，尚未新增 `crypto-workspace/`
+- BTC / crypto 方向已有 `crypto-workspace/`，包含 REST / WebSocket 探测、capture、replay、fixture、Phase C evidence 和 Phase C classification 工具
+- 当前 BTC 固定 fixture 中，真实清算窗口被分类为 `short_squeeze_only`，无清算对照窗口被分类为 `insufficient_evidence`；当前还没有 `spring_candidate` 样本
 - 手工验收用例已整理完毕
 
 ## 常用命令
@@ -42,6 +43,9 @@ BTC / crypto 方向是新的独立工作面，先阅读 `docs/crypto-wyckoff/REA
 - `npm run dev`
 - `npm run lint`
 - `npm run build`
+- `npm run crypto:fixtures`
+- `npm run crypto:phase-c:evidence`
+- `npm run crypto:phase-c:classify`
 
 ## 工作规则
 
@@ -55,9 +59,7 @@ BTC / crypto 方向是新的独立工作面，先阅读 `docs/crypto-wyckoff/REA
 
 ## 推荐下一步
 
-1. 在 ptrade 模拟盘验证 `ptrade-workspace/strategy/ptrade_wyckoff_trader.py` 的订单、成交、持仓、报告和状态记忆闭环。
-2. 在真实 ptrade 交易时段验证 L2 / 逐笔成交权限，并决定何时把 `require_l2_for_entry` / `require_trade_stream_for_entry` 切为强制闸门。
-3. 增加基于 `cancel_order` 的超时撤单 / 重报价，以及基于 `get_deliver()` / `get_fundjour()` 的次日对账。
-4. 继续完善 cause count、失败结构识别和严格微观确认，把 ptrade 作为自动化交易前的主试验场推进。
-5. 将本地 `ptrade bridge` 从 `mock` 模式切到真实上游连接，并统一前端与策略侧的数据契约。
-6. 为过滤、预警确认、标的选择和 ptrade bridge 状态补自动化 UI 测试。
+1. BTC 路线：扩充 Phase C 样本集，优先寻找 `long liquidation + 价格收回 + 盘口恢复` 的窗口。
+2. BTC 路线：补结构支撑 / 阻力识别和正式 spot/perp CVD 判据，再做 20 个历史窗口人工复核。
+3. ptrade 路线：在模拟盘验证 `ptrade-workspace/strategy/ptrade_wyckoff_trader.py` 的订单、成交、持仓、报告和状态记忆闭环。
+4. ptrade 路线：在真实 ptrade 交易时段验证 L2 / 逐笔成交权限，并决定何时把 `require_l2_for_entry` / `require_trade_stream_for_entry` 切为强制闸门。
