@@ -187,3 +187,8 @@ npm run crypto:replay -- --start=2026-05-07T14:30:00Z --end=2026-05-07T14:40:00Z
 采集侧也已对 OKX 这类全市场清算频道做 BTC instrument 过滤：非 BTC liquidation 消息只计入 capture report 的 `filteredMessages`，不再写入本地 JSONL 作为 BTC 回放样本。
 
 回放报告会输出 instrument 覆盖、延迟摘要和 `evidence.minimumPhaseCReady`。其中 `minimumPhaseCReady` 只表示窗口内同时存在 `book_delta` 和 `liquidation` 两类 BTC 证据；它不是 Spring 信号。当前 capture 已支持 BTC spot/perp trade 流，作为后续 CVD 的原始输入；`crypto:rest-capture` 已支持 OI / Funding 快照落盘。真正进入 Phase C 洗盘过滤器前，还需要拿到真实 BTC liquidation 样本，并把这些窗口做成可复核 fixture。
+
+当前已固定两个 replay fixture：
+
+- `okx-btc-liquidation-2026-05-09T12-14Z`：包含 trade、book_delta、OI、Funding 和 1 条 BTC liquidation，用于后续 Phase C evidence 聚合。
+- `okx-btc-no-liquidation-2026-05-09T12-33Z`：包含 trade、book_delta、OI 和 Funding，但无 BTC liquidation，用作对照窗口。

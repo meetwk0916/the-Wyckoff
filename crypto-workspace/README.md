@@ -20,6 +20,7 @@ It is not a trading bot. It must not store exchange API keys or connect to funde
 - `src/runWsProbe.mjs`: CLI entrypoint for WebSocket channel probes.
 - `src/runLiveCapture.mjs`: CLI entrypoint for short or long live JSONL captures.
 - `src/runReplayWindow.mjs`: CLI entrypoint for local JSONL replay windows.
+- `src/runReplayFixtures.mjs`: CLI entrypoint for pinned replay fixture checks.
 - `data/README.md`: local market data boundary.
 - `reports/README.md`: generated provider probe report boundary.
 
@@ -105,6 +106,15 @@ npm run crypto:replay -- --start=2026-05-07T14:30:00Z --end=2026-05-07T14:40:00Z
 
 Replay reports are written to `crypto-workspace/reports/replay-window-last.json`. When provider payloads contain their own instrument symbols, replay filtering uses those payload symbols first; this avoids treating OKX full-market liquidation messages as BTC events just because the stream itself is aggregate.
 The replay report also includes instrument coverage, latency summary, and an `evidence` block. `minimumPhaseCReady` only means the selected window has both `book_delta` and `liquidation`; it is still not a Spring signal. Trade coverage is the base layer for later spot/perp CVD, and REST derivatives snapshots provide OI/Funding context, but CVD and Phase C classification are intentionally not part of this capture step.
+
+Run pinned replay fixture checks:
+
+```bash
+npm run crypto:fixtures
+npm run crypto:fixtures -- --fixture=okx-btc-liquidation-2026-05-09T12-14Z
+```
+
+Fixture definitions live in `crypto-workspace/config/replay-fixtures.json`. Reports are written under `crypto-workspace/reports/fixtures/` and summarized in `crypto-workspace/reports/replay-fixtures-last.json`.
 
 ## Phase 0 Exit Criteria
 
