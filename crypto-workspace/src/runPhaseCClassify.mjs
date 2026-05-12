@@ -60,12 +60,16 @@ function classifyWindow(window) {
   const priceAction = evidence.priceAction || {}
   const orderBookRecovery = evidence.orderBookRecovery || {}
   const tradeFlow = evidence.tradeFlow || {}
+  const cvdContext = evidence.cvdContext || {}
   const context = {
     liquidationDirection: classifyLiquidationDirection(liquidation),
     priceRecovery: buildPriceRecovery(priceAction),
+    structureContext: buildStructureContext(evidence.structureContext || {}),
     bookRecovery: buildBookRecovery(orderBookRecovery),
+    cvdContext: buildCvdContext(cvdContext, tradeFlow),
     tradeFlowBias: buildTradeFlowBias(tradeFlow),
     derivativesCoverage: buildDerivativesCoverage(evidence.derivativesContext || {}),
+    openInterestShock: buildOpenInterestShock(evidence.derivativesContext?.openInterestShock || {}),
   }
 
   if (!window.readiness?.phaseCInputsReady) {
@@ -92,8 +96,20 @@ function classifyWindow(window) {
     reasons.push('short_liquidation_dominates')
   } else if (label === 'spring_candidate') {
     reasons.push('long_liquidation_with_recovery')
+    reasons.push('structure_support_recovered')
+    reasons.push('phase_c_cvd_supportive')
+    reasons.push('open_interest_deleveraging_confirmed')
   } else if (label === 'breakdown_risk') {
     reasons.push('washout_recovery_not_confirmed')
+    if (context.liquidationDirection === 'long' && !context.structureContext.supportRecovered) {
+      reasons.push('structure_support_not_recovered')
+    }
+    if (context.liquidationDirection === 'long' && !context.cvdContext.phaseCFlowSupport) {
+      reasons.push('phase_c_cvd_not_supportive')
+    }
+    if (context.liquidationDirection === 'long' && !context.openInterestShock.isDeleveraging) {
+      reasons.push('open_interest_deleveraging_not_confirmed')
+    }
   }
 
   return {
@@ -122,7 +138,13 @@ function classifyReadyWindow(context) {
     return 'breakdown_risk'
   }
 
-  if (context.priceRecovery.recoveredFromLow && context.bookRecovery.recoveredFromLow) {
+  if (
+    context.priceRecovery.recoveredFromLow &&
+    context.bookRecovery.recoveredFromLow &&
+    context.structureContext.supportRecovered &&
+    context.cvdContext.phaseCFlowSupport &&
+    context.openInterestShock.isDeleveraging
+  ) {
     return 'spring_candidate'
   }
 
@@ -158,6 +180,34 @@ function buildPriceRecovery(priceAction) {
     perp,
     recoveredFromLow: spot.recoveredFromLow || perp.recoveredFromLow,
     bothRecoveredFromLow: spot.recoveredFromLow && perp.recoveredFromLow,
+  }
+}
+
+function buildStructureContext(structureContext) {
+  const spot = summarizeStructureContext(structureContext.spot)
+  const perp = summarizeStructureContext(structureContext.perp)
+
+  return {
+    anchor: structureContext.anchor || {},
+    spot,
+    perp,
+    supportBroken: spot.supportBroken || perp.supportBroken,
+    supportRecovered: spot.supportRecovered || perp.supportRecovered,
+    bothSupportRecovered: spot.supportRecovered && perp.supportRecovered,
+  }
+}
+
+function summarizeStructureContext(structure) {
+  return {
+    observations: structure?.observations || 0,
+    supportMethod: structure?.supportMethod || '',
+    support: numberOrNull(structure?.support),
+    resistance: numberOrNull(structure?.resistance),
+    postAnchorLow: numberOrNull(structure?.postAnchorLow),
+    last: numberOrNull(structure?.last),
+    supportBroken: Boolean(structure?.supportBroken),
+    supportRecovered: Boolean(structure?.supportRecovered),
+    breakDepthPct: numberOrNull(structure?.breakDepthPct),
   }
 }
 
@@ -206,6 +256,86 @@ function buildTradeFlowBias(tradeFlow) {
   }
 }
 
+function buildCvdContext(cvdContext, tradeFlow) {
+  const spot = summarizeCvd(cvdContext.spot, tradeFlow.spot)
+  const perp = summarizeCvd(cvdContext.perp, tradeFlow.perp)
+
+  return {
+    spot,
+    perp,
+    divergence: cvdContext.divergence || classifyCvdDivergence(spot, perp),
+    phaseCFlowSupport: Boolean(cvdContext.phaseCFlowSupport ?? isPhaseCFlowSupportive(spot, perp)),
+  }
+}
+
+function summarizeCvd(cvd, fallbackFlow) {
+  if (cvd?.quality === 'observed') {
+    return {
+      trades: cvd.trades || 0,
+      notionalDelta: numberOrNull(cvd.notionalDelta),
+      deltaRatio: numberOrNull(cvd.deltaRatio),
+      bias: cvd.bias || 'unknown',
+      quality: cvd.quality,
+    }
+  }
+
+  const flow = summarizeTradeFlow(fallbackFlow)
+  const buyRawNotional = numberOrNull(fallbackFlow?.buyRawNotional) || 0
+  const sellRawNotional = numberOrNull(fallbackFlow?.sellRawNotional) || 0
+  const totalRawNotional = buyRawNotional + sellRawNotional
+  const deltaRatio = totalRawNotional === 0 ? null : flow.netRawNotional / totalRawNotional
+
+  return {
+    trades: flow.trades,
+    notionalDelta: flow.netRawNotional,
+    deltaRatio,
+    bias: classifyCvdBias(deltaRatio),
+    quality: flow.trades > 0 ? 'observed' : 'missing_trades',
+  }
+}
+
+function classifyCvdBias(deltaRatio) {
+  if (deltaRatio === null) {
+    return 'unknown'
+  }
+  if (deltaRatio >= 0.05) {
+    return 'demand'
+  }
+  if (deltaRatio <= -0.05) {
+    return 'supply'
+  }
+  return 'balanced'
+}
+
+function classifyCvdDivergence(spot, perp) {
+  if (spot.quality !== 'observed' || perp.quality !== 'observed') {
+    return 'insufficient_trade_flow'
+  }
+  if (spot.bias === 'demand' && perp.bias === 'supply') {
+    return 'spot_demand_perp_supply'
+  }
+  if (spot.bias === 'supply' && perp.bias === 'demand') {
+    return 'spot_supply_perp_demand'
+  }
+  if (spot.bias === 'demand' && perp.bias === 'demand') {
+    return 'broad_demand'
+  }
+  if (spot.bias === 'supply' && perp.bias === 'supply') {
+    return 'broad_supply'
+  }
+  return 'mixed_or_balanced'
+}
+
+function isPhaseCFlowSupportive(spot, perp) {
+  if (spot.quality !== 'observed' || perp.quality !== 'observed') {
+    return false
+  }
+  if (spot.bias === 'supply') {
+    return false
+  }
+  return spot.bias === 'demand' || (spot.bias === 'balanced' && perp.bias !== 'demand')
+}
+
 function summarizeTradeFlow(flow) {
   const netRawNotional = numberOrNull(flow?.netRawNotional)
   let bias = 'flat'
@@ -227,6 +357,17 @@ function buildDerivativesCoverage(derivatives) {
   return {
     openInterestSamples: derivatives.openInterest?.samples || 0,
     fundingRateSamples: derivatives.fundingRate?.samples || 0,
+  }
+}
+
+function buildOpenInterestShock(openInterestShock) {
+  return {
+    samples: openInterestShock.samples || 0,
+    change: numberOrNull(openInterestShock.change),
+    changePct: numberOrNull(openInterestShock.changePct),
+    direction: openInterestShock.direction || 'unknown',
+    isDeleveraging: Boolean(openInterestShock.isDeleveraging),
+    quality: openInterestShock.quality || 'missing',
   }
 }
 

@@ -64,6 +64,7 @@ BTC / crypto 方向是独立工作面，先阅读 `docs/crypto-wyckoff/README.md
 ## 推荐下一步
 
 1. BTC 路线：扩充 Phase C 样本集，优先寻找 `long liquidation + 价格收回 + 盘口恢复` 的窗口。
-2. BTC 路线：补结构支撑 / 阻力识别和正式 spot/perp CVD 判据，再做 20 个历史窗口人工复核。
-3. ptrade 路线：在模拟盘验证 `ptrade-workspace/strategy/ptrade_wyckoff_trader.py` 的订单、成交、持仓、报告和状态记忆闭环。
-4. ptrade 路线：在真实 ptrade 交易时段验证 L2 / 逐笔成交权限，并决定何时把 `require_l2_for_entry` / `require_trade_stream_for_entry` 切为强制闸门。
+2. BTC 路线：当前不走 OKX 手工数据导入；CoinGlass 真实 API 因付费先跳过。优先恢复 Bybit 免费实时清算长跑采集，继续用 Binance Vision 补 trade / kline 上下文。
+3. BTC 路线：补结构支撑 / 阻力识别和正式 spot/perp CVD 判据，再做 20 个历史窗口人工复核。
+4. ptrade 路线：在模拟盘验证 `ptrade-workspace/strategy/ptrade_wyckoff_trader.py` 的订单、成交、持仓、报告和状态记忆闭环。
+5. ptrade 路线：在真实 ptrade 交易时段验证 L2 / 逐笔成交权限，并决定何时把 `require_l2_for_entry` / `require_trade_stream_for_entry` 切为强制闸门。

@@ -6,6 +6,7 @@ export function buildCaptureStreams(market) {
   return {
     binance: buildBinanceStreams(market.instruments),
     okx: buildOkxStreams(market.instruments),
+    bybit: buildBybitStreams(market.instruments),
   }
 }
 
@@ -75,6 +76,21 @@ function buildOkxStreams(instruments) {
       providerSymbol: perpSymbol,
       subscribe: { op: 'subscribe', args: [{ channel: 'liquidation-orders', instType: 'SWAP' }] },
       ignoreSubscriptionAck: true,
+    }),
+  ]
+}
+
+function buildBybitStreams(instruments) {
+  const perp = instruments.find((instrument) => instrument.instrumentType === 'perp')
+  const perpSymbol = perp?.providerSymbols?.bybit
+
+  return [
+    createStream('bybit', 'bybit', 'linear_all_liquidation', 'liquidation', 'wss://stream.bybit.com/v5/public/linear', {
+      symbol: perp?.canonicalSymbol,
+      providerSymbol: perpSymbol,
+      subscribe: { op: 'subscribe', args: [`allLiquidation.${perpSymbol}`] },
+      ignoreSubscriptionAck: true,
+      keepAlive: { intervalMs: 20_000, payload: { op: 'ping' } },
     }),
   ]
 }

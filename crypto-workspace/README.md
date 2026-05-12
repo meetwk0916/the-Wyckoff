@@ -10,6 +10,7 @@ Its current job is the early BTC replay and Phase C classification lane:
 - run pinned replay fixtures
 - aggregate Phase C evidence
 - conservatively classify candidates before any paper trade work
+- derive spot / perp CVD context for rule calibration
 
 It is not a trading bot. It must not store exchange API keys or connect to funded accounts.
 
@@ -21,10 +22,16 @@ It is not a trading bot. It must not store exchange API keys or connect to funde
 - `src/runProviderProbe.mjs`: CLI entrypoint for dry-run and live probes.
 - `src/runWsProbe.mjs`: CLI entrypoint for WebSocket channel probes.
 - `src/runLiveCapture.mjs`: CLI entrypoint for short or long live JSONL captures.
+- `src/runFreeHistoricalSourceProbe.mjs`: CLI entrypoint for free historical source manifests and availability checks.
+- `src/runBinanceVisionImport.mjs`: CLI entrypoint for downloading Binance Vision aggTrades / klines ZIP files into normalized JSONL events.
+- `src/runCoinGlassLiquidationImport.mjs`: CLI entrypoint for importing CoinGlass pair liquidation history as aggregate liquidation context.
 - `src/runReplayWindow.mjs`: CLI entrypoint for local JSONL replay windows.
 - `src/runReplayFixtures.mjs`: CLI entrypoint for pinned replay fixture checks.
 - `src/runPhaseCEvidence.mjs`: CLI entrypoint for Phase C evidence aggregation without Spring classification.
 - `src/runPhaseCClassify.mjs`: CLI entrypoint for conservative Phase C candidate classification.
+- `src/runPhaseCReview.mjs`: CLI entrypoint for review-index scoring and rule-calibration summaries.
+- `src/runPhaseCCandidateScan.mjs`: CLI entrypoint for scanning raw JSONL into Phase C liquidation candidate windows and fixture drafts.
+- `reviews/phase-c-review-index.json`: machine-readable human review labels for pinned Phase C windows.
 - `data/README.md`: local market data boundary.
 - `reports/README.md`: generated provider probe report boundary.
 
@@ -60,15 +67,46 @@ Live WebSocket channel probe:
 ```bash
 npm run crypto:ws-probe -- --live --provider=binance
 npm run crypto:ws-probe -- --live --provider=okx
+npm run crypto:ws-probe -- --live --provider=bybit
 ```
 
 Reports are written to `crypto-workspace/reports/provider-probe-last.json`.
 WebSocket reports are written to `crypto-workspace/reports/ws-provider-probe-last.json`.
 
+Check free historical source availability:
+
+```bash
+npm run crypto:history:free-sources
+npm run crypto:history:free-sources -- --provider=binance_vision --date=2026-05-09 --live
+```
+
+The report is written to `crypto-workspace/reports/free-historical-sources-last.json`. Dry run mode emits expected public download URLs and manual source checks. Live mode uses HEAD checks for predictable public URLs such as Binance Vision. It does not download ZIP payloads or import data.
+
+Download and import Binance Vision aggTrades / kline samples:
+
+```bash
+npm run crypto:history:binance-vision -- --date=2026-05-09
+npm run crypto:history:binance-vision -- --date=2026-05-09 --limit-rows=1000 --download
+```
+
+Dry run mode only writes an import plan. `--download` downloads Binance Vision ZIP files under `crypto-workspace/data/free-sources/` and writes normalized JSONL under `crypto-workspace/data/raw/binance_vision/`. Both locations are ignored by git. This importer currently supports spot and USDT-M futures `aggTrades` as `trade` events plus 1m klines as `kline` events; it does not import liquidation evidence.
+
+Plan and import CoinGlass aggregate liquidation context:
+
+```bash
+npm run crypto:history:coinglass -- --date=2026-05-09
+COINGLASS_API_KEY=<key> npm run crypto:history:coinglass -- --date=2026-05-09 --download
+```
+
+CoinGlass imports are written under `crypto-workspace/data/raw/coinglass/` as normalized `liquidation` events with `aggregate_liquidation_context` quality warnings. They can help find historical long / short liquidation windows, but they are not exchange-native raw liquidation evidence.
+
+As of 2026-05-12, real CoinGlass API downloads are skipped because the needed API path is paid. Keep this command as a future optional import path, not as a current required step.
+
 Short liquidation capture smoke test:
 
 ```bash
 npm run crypto:capture -- --duration-sec=60
+npm run crypto:capture -- --provider=bybit --duration-sec=60 --event-type=liquidation
 ```
 
 Capture trade streams:
@@ -88,18 +126,31 @@ Long liquidation capture:
 
 ```bash
 npm run crypto:capture -- --duration-sec=86400 --event-type=liquidation
+npm run crypto:capture -- --provider=bybit --duration-sec=86400 --event-type=liquidation
 ```
 
 Capture data is written under `crypto-workspace/data/raw/` and is ignored by git.
 For aggregate liquidation feeds such as OKX `liquidation-orders`, the capture step filters provider payloads to the configured BTC instrument before writing JSONL. Non-BTC liquidation messages are counted as `filteredMessages` in the capture report and are not treated as replay samples.
+Bybit `allLiquidation.BTCUSDT` is BTCUSDT-filtered by topic and maps `S=Buy` to long liquidation and `S=Sell` to short liquidation. It is a liquidation-only supplement; trades, book, OI, and Funding still come from Binance / OKX or historical imports.
 
 Check active capture status:
 
 ```bash
 npm run crypto:capture:status
+npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_24h
 ```
 
 This scans raw JSONL files, counts liquidation events, counts BTC-related events, separates true BTC liquidation events, and checks the `wyckoff_liq_capture_24h` screen session.
+Use the `--screen` override for provider-specific long-running captures such as `wyckoff_bybit_liq_capture_24h`.
+
+Scan raw JSONL into Phase C candidate windows:
+
+```bash
+npm run crypto:phase-c:candidates
+npm run crypto:phase-c:candidates -- --before-min=10 --after-min=10
+```
+
+The candidate scan report is written to `crypto-workspace/reports/phase-c-candidates-last.json`. It finds BTC liquidation events, builds review windows around them, checks trade / book / OI / Funding / liquidation coverage, and emits fixture drafts. It does not classify Spring or approve trades.
 
 Replay a local JSONL window:
 
@@ -127,7 +178,8 @@ npm run crypto:phase-c:evidence
 npm run crypto:phase-c:evidence -- --fixture=okx-btc-liquidation-2026-05-09T12-14Z
 ```
 
-The evidence report is written to `crypto-workspace/reports/phase-c-evidence-last.json`. It reports observable price action, trade flow, book recovery, liquidation, OI, and Funding context. It does not classify Spring, LPS, or trade actions.
+The evidence report is written to `crypto-workspace/reports/phase-c-evidence-last.json`. It reports observable price action, trade flow, spot / perp CVD context, book recovery, liquidation, OI, OI shock, and Funding context. It does not classify Spring, LPS, or trade actions.
+The evidence report also includes a conservative `structureContext` block. It estimates a local support / resistance band from spot and perp price observations around the window anchor, then records whether support was broken and recovered. This is review evidence, not a trade trigger.
 
 Classify Phase C candidates from an evidence report:
 
@@ -135,7 +187,15 @@ Classify Phase C candidates from an evidence report:
 npm run crypto:phase-c:classify
 ```
 
-The classification report is written to `crypto-workspace/reports/phase-c-classification-last.json`. Labels are limited to `spring_candidate`, `breakdown_risk`, `short_squeeze_only`, and `insufficient_evidence`. This report still does not emit entries, exits, position sizing, or trade actions.
+The classification report is written to `crypto-workspace/reports/phase-c-classification-last.json`. Labels are limited to `spring_candidate`, `breakdown_risk`, `short_squeeze_only`, and `insufficient_evidence`. A future Spring candidate must pass liquidation direction, structure recovery, book recovery, Phase C CVD support, and OI deleveraging checks. This report still does not emit entries, exits, position sizing, or trade actions.
+
+Run the Phase C review index and scoring report:
+
+```bash
+npm run crypto:phase-c:review
+```
+
+The review index lives at `crypto-workspace/reviews/phase-c-review-index.json`. It records fixed human labels, rationales, and machine-readable factors for each reviewed window. The generated review report is written to `crypto-workspace/reports/phase-c-review-last.json` and summarizes rule scores, reviewed / pending counts, and system-vs-review agreement. This is research calibration only; it does not approve live or paper trades.
 
 ## Phase 0 Exit Criteria
 
@@ -146,10 +206,16 @@ The classification report is written to `crypto-workspace/reports/phase-c-classi
 
 ## Current Status
 
-As of 2026-05-10:
+As of 2026-05-11:
 
 - Two pinned OKX BTC replay fixtures exist in `config/replay-fixtures.json`.
 - `npm run crypto:fixtures` passes both fixtures.
-- `npm run crypto:phase-c:evidence` emits one Phase C-ready evidence window and one insufficient-evidence control window.
-- `npm run crypto:phase-c:classify` classifies the current BTC liquidation window as `short_squeeze_only`, not `spring_candidate`.
-- The next BTC work is sample expansion and structural context, not trade execution.
+- `npm run crypto:phase-c:evidence` emits one Phase C-ready evidence window and one insufficient-evidence control window, including local structure support / recovery context.
+- `npm run crypto:phase-c:evidence` also emits first-pass spot / perp CVD context with notional delta, delta ratio, demand / supply bias, divergence, and Phase C flow support.
+- `npm run crypto:phase-c:classify` classifies the current BTC liquidation window as `short_squeeze_only`, not `spring_candidate`; future Spring candidates must also recover estimated structure support and pass CVD support.
+- `npm run crypto:phase-c:review` reads the seed review index, scores both windows, and reports 2 reviewed / 0 pending with system-review agreement.
+- `npm run crypto:phase-c:candidates` currently finds 1 BTC liquidation candidate in local raw data: 0 long liquidation candidates and 1 short liquidation control window.
+- `npm run crypto:history:free-sources -- --provider=binance_vision --date=2026-05-09 --live` confirms Binance Vision spot/perp aggTrades and 1m klines are available for that date, while USDT-M `liquidationSnapshot` is unavailable.
+- `npm run crypto:history:binance-vision -- --date=2026-05-09 --limit-rows=1000 --download` imports 1,000 spot and 1,000 USDT-M futures aggTrade rows as normalized trade events. Candidate scan sees them as additional BTC events but still finds 0 long liquidation candidates.
+- Bybit public WebSocket support is now wired as an additional free realtime liquidation source for future long-running capture.
+- The next BTC work is sample expansion, CVD threshold calibration, and broader review-index coverage, not trade execution.

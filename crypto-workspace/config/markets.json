@@ -10,7 +10,8 @@
           "canonicalSymbol": "BTC-USDT-SPOT",
           "providerSymbols": {
             "binance": "BTCUSDT",
-            "okx": "BTC-USDT"
+            "okx": "BTC-USDT",
+            "bybit": "BTCUSDT"
           }
         },
         {
@@ -18,7 +19,8 @@
           "canonicalSymbol": "BTC-USDT-PERP",
           "providerSymbols": {
             "binance": "BTCUSDT",
-            "okx": "BTC-USDT-SWAP"
+            "okx": "BTC-USDT-SWAP",
+            "bybit": "BTCUSDT"
           }
         }
       ]
@@ -26,7 +28,7 @@
   ],
   "providerCandidates": {
     "researchPrimary": ["tardis", "kaiko", "coinglass"],
-    "liveFallback": ["binance", "okx"]
+    "liveFallback": ["binance", "okx", "bybit"]
   },
   "phase0RequiredEventTypes": [
     "trade",

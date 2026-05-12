@@ -204,6 +204,8 @@ function extractPayloadSymbols(event) {
 
   if (Array.isArray(payload?.data)) {
     for (const item of payload.data) {
+      addSymbol(symbols, item.s)
+      addSymbol(symbols, item.symbol)
       addSymbol(symbols, item.instId)
       addSymbol(symbols, item.instFamily)
       addSymbol(symbols, item.uly)

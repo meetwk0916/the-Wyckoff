@@ -40,6 +40,7 @@
       "type": "string",
       "enum": [
         "trade",
+        "kline",
         "book_snapshot",
         "book_delta",
         "open_interest",

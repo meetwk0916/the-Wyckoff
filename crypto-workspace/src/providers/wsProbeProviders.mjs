@@ -1,6 +1,7 @@
 import { probeWebSocket } from '../utils/webSocketProbe.mjs'
 
 const WS_TIMEOUT_MS = 12000
+const defaultRequiredEventTypes = ['trade', 'book_delta', 'liquidation']
 
 function createWsEndpoint(name, eventType, url, expectedFields = [], options = {}) {
   return { name, eventType, url, expectedFields, ...options }
@@ -108,11 +109,31 @@ function buildOkxWsEndpoints(instruments) {
   ]
 }
 
+function buildBybitWsEndpoints(instruments) {
+  const perp = instruments.find((instrument) => instrument.instrumentType === 'perp')
+  const perpSymbol = perp?.providerSymbols?.bybit
+
+  return [
+    createWsEndpoint(
+      'linear_all_liquidation',
+      'liquidation',
+      'wss://stream.bybit.com/v5/public/linear',
+      ['topic', 'type', 'ts', 'data', 'T', 's', 'S', 'v', 'p'],
+      {
+        subscribe: { op: 'subscribe', args: [`allLiquidation.${perpSymbol}`] },
+        ignoreSubscriptionAck: true,
+        allowNoSample: true,
+      },
+    ),
+  ]
+}
+
 export function buildWsProviderPlans(market) {
   return {
     binance: {
       provider: 'binance',
       venue: 'binance',
+      requiredEventTypes: defaultRequiredEventTypes,
       coverageNotes: [
         'WebSocket probe covers trades, depth delta, and futures forceOrder liquidation stream reachability.',
         'Liquidation streams can connect without emitting a sample during quiet windows.',
@@ -122,11 +143,22 @@ export function buildWsProviderPlans(market) {
     okx: {
       provider: 'okx',
       venue: 'okx',
+      requiredEventTypes: defaultRequiredEventTypes,
       coverageNotes: [
         'WebSocket probe covers trades, books delta, and liquidation-orders public channel reachability.',
         'Liquidation streams can acknowledge subscription without emitting liquidation data during quiet windows.',
       ],
       endpoints: buildOkxWsEndpoints(market.instruments),
+    },
+    bybit: {
+      provider: 'bybit',
+      venue: 'bybit',
+      requiredEventTypes: ['liquidation'],
+      coverageNotes: [
+        'WebSocket probe covers Bybit public allLiquidation linear stream reachability.',
+        'The stream is BTCUSDT-filtered by topic and can connect without emitting a sample during quiet windows.',
+      ],
+      endpoints: buildBybitWsEndpoints(market.instruments),
     },
   }
 }
@@ -159,7 +191,11 @@ export async function runWsProviderPlan(plan, { live = false } = {}) {
     finishedAt: new Date().toISOString(),
     coverageNotes: plan.coverageNotes,
     endpoints: endpointResults,
-    missingPhase0EventTypes: findMissingPhase0EventTypes(endpointResults),
+    requiredEventTypes: plan.requiredEventTypes || defaultRequiredEventTypes,
+    missingPhase0EventTypes: findMissingPhase0EventTypes(
+      endpointResults,
+      plan.requiredEventTypes || defaultRequiredEventTypes,
+    ),
   }
 }
 
@@ -189,12 +225,12 @@ async function probeWsEndpoint(endpoint) {
   }
 }
 
-function findMissingPhase0EventTypes(endpointResults) {
+function findMissingPhase0EventTypes(endpointResults, requiredEventTypes) {
   const covered = new Set(
     endpointResults
       .filter((result) => ['planned', 'ok', 'connected_no_sample'].includes(result.status))
       .map((result) => result.eventType),
   )
 
-  return ['trade', 'book_delta', 'liquidation'].filter((eventType) => !covered.has(eventType))
+  return requiredEventTypes.filter((eventType) => !covered.has(eventType))
 }

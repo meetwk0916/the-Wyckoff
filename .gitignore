@@ -19,6 +19,7 @@ crypto-workspace/data/**/*.json
 crypto-workspace/data/**/*.jsonl
 crypto-workspace/data/**/*.csv
 crypto-workspace/data/**/*.parquet
+crypto-workspace/data/**/*.zip
 crypto-workspace/reports/*.json
 crypto-workspace/reports/**/*.json
 crypto-workspace/run/*.pid
