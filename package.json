@@ -18,7 +18,12 @@
     "crypto:replay": "node crypto-workspace/src/runReplayWindow.mjs",
     "crypto:fixtures": "node crypto-workspace/src/runReplayFixtures.mjs",
     "crypto:phase-c:evidence": "node crypto-workspace/src/runPhaseCEvidence.mjs",
-    "crypto:phase-c:classify": "node crypto-workspace/src/runPhaseCClassify.mjs"
+    "crypto:phase-c:classify": "node crypto-workspace/src/runPhaseCClassify.mjs",
+    "crypto:phase-c:review": "node crypto-workspace/src/runPhaseCReview.mjs",
+    "crypto:phase-c:candidates": "node crypto-workspace/src/runPhaseCCandidateScan.mjs",
+    "crypto:history:free-sources": "node crypto-workspace/src/runFreeHistoricalSourceProbe.mjs",
+    "crypto:history:binance-vision": "node crypto-workspace/src/runBinanceVisionImport.mjs",
+    "crypto:history:coinglass": "node crypto-workspace/src/runCoinGlassLiquidationImport.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.542.0",

@@ -268,6 +268,8 @@ function extractPayloadSymbols(event) {
 
   if (Array.isArray(payload?.data)) {
     for (const item of payload.data) {
+      addSymbol(symbols, item.s)
+      addSymbol(symbols, item.symbol)
       addSymbol(symbols, item.instId)
       addSymbol(symbols, item.instFamily)
       addSymbol(symbols, item.uly)
@@ -320,11 +322,11 @@ function summarizePayload(payload) {
   return {
     status: payload.status,
     message: payload.message,
-    symbol: payload.s || payload.o?.s || payload.symbol || payload.instId || firstDataItem?.instId,
-    side: payload.S || payload.o?.S || firstDataItem?.side,
+    symbol: payload.s || payload.o?.s || payload.symbol || payload.instId || firstDataItem?.s || firstDataItem?.instId,
+    side: payload.S || payload.o?.S || firstDataItem?.S || firstDataItem?.side,
     orderStatus: payload.X || payload.o?.X,
-    price: payload.p || payload.o?.p || firstDataItem?.px,
-    quantity: payload.q || payload.o?.q || firstDataItem?.sz,
+    price: payload.p || payload.o?.p || firstDataItem?.p || firstDataItem?.px,
+    quantity: payload.q || payload.o?.q || firstDataItem?.v || firstDataItem?.sz,
     openInterest: payload.openInterest || firstDataItem?.oi,
     fundingRate: payload.lastFundingRate || payload.fundingRate || firstDataItem?.fundingRate,
     dataItems: Array.isArray(payload.data) ? payload.data.length : undefined,

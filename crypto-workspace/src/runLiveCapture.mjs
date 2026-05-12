@@ -61,6 +61,7 @@ async function captureStream(stream, options, startedAt) {
   let subscriptionAck = false
   let lastEventAt = ''
   let error = ''
+  let nextKeepAliveAt = stream.keepAlive ? Date.now() + stream.keepAlive.intervalMs : 0
 
   try {
     socket = await openWebSocket(stream.url, { timeoutMs: FRAME_TIMEOUT_MS })
@@ -70,6 +71,11 @@ async function captureStream(stream, options, startedAt) {
     }
 
     while (Date.now() - streamStartedAt < options.durationMs) {
+      if (stream.keepAlive && Date.now() >= nextKeepAliveAt) {
+        socket.write(encodeFrame(JSON.stringify(stream.keepAlive.payload)))
+        nextKeepAliveAt = Date.now() + stream.keepAlive.intervalMs
+      }
+
       const remainingMs = options.durationMs - (Date.now() - streamStartedAt)
       const frame = await readFrame(socket, Math.min(FRAME_TIMEOUT_MS, remainingMs))
 
@@ -184,6 +190,7 @@ function itemMatchesTargetSymbols(item, targetSymbols) {
   const symbols = [
     item?.s,
     item?.o?.s,
+    item?.symbol,
     item?.instId,
     item?.instFamily,
     item?.uly,
@@ -316,7 +323,7 @@ function inferInstrumentType(stream) {
 }
 
 function inferEventTime(payload) {
-  const timestamp = payload?.E || payload?.T || payload?.ts || payload?.data?.[0]?.ts
+  const timestamp = payload?.E || payload?.T || payload?.ts || payload?.data?.[0]?.T || payload?.data?.[0]?.ts
   const asNumber = Number(timestamp)
 
   if (Number.isFinite(asNumber) && asNumber > 0) {
@@ -330,7 +337,7 @@ function printHelp() {
   console.log(`Usage: npm run crypto:capture -- [options]
 
 Options:
-  --provider=<name>        Provider to capture: all, binance, okx. Default: all.
+  --provider=<name>        Provider to capture: all, binance, okx, bybit. Default: all.
   --event-type=<type>      Event type: liquidation, book_delta, all. Default: liquidation.
   --duration-sec=<number>  Capture duration in seconds. Default: 60.
   --duration-ms=<number>   Capture duration in milliseconds.

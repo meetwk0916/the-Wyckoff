@@ -1,5 +1,118 @@
 # BTC 数据源验证记录
 
+## 2026-05-11 低门槛历史数据源复查
+
+当前本地 raw 数据扫描结果：
+
+```bash
+npm run crypto:phase-c:candidates
+```
+
+结果：
+
+- BTC events：38,501
+- BTC liquidation events：1
+- long liquidation candidates：0
+- short liquidation candidates：1
+- full sensor ready candidates：1
+
+结论：
+
+- 本地自建 capture 当前只有一个 short liquidation 对照窗口，仍缺 Phase C 正样本。
+- 下一步不应等待短窗口实时采集自然碰到正样本，而应验证低门槛历史源。
+
+低门槛历史源复查结论：
+
+- OKX Historical Data：可作为 OKX BTC trade / L2 order book / funding 历史窗口入口，但当前不走手工下载 / 手工导入路线。
+- CoinGlass：pair liquidation history 适合作为分钟级 long / short 清算聚合上下文，但截至 2026-05-12 API 付费，当前先跳过真实下载。
+- CryptoHFTData：值得小窗口验证，但作为新数据源必须先审计字段、许可、覆盖起点和缺口。
+- Tardis.dev / Kaiko：仍是更完整的 research primary 候选，但不作为“先免费的跑跑”的第一选择。
+
+新增免费历史源探测入口：
+
+```bash
+npm run crypto:history:free-sources
+npm run crypto:history:free-sources -- --provider=binance_vision --date=2026-05-09 --live
+```
+
+Binance Vision live HEAD 结果：
+
+- `spot_agg_trades_daily`：available
+- `spot_klines_daily`：available
+- `um_futures_agg_trades_daily`：available
+- `um_futures_klines_daily`：available
+- `um_futures_liquidation_snapshot_daily`：unavailable / 404
+
+结论：
+
+- Binance Vision 免费源可以补 BTC spot / perp trade 和 K 线历史窗口。
+- 当前日期的 USDT-M liquidationSnapshot 不可用，不能解决 Phase C 正样本的清算证据缺口。
+- 下一步仍需要清算正样本；当前不推进 OKX 手工文件验证，CoinGlass 真实 API 因付费先跳过。
+
+新增 Binance Vision aggTrades / kline 导入入口：
+
+```bash
+npm run crypto:history:binance-vision -- --date=2026-05-09
+npm run crypto:history:binance-vision -- --date=2026-05-09 --limit-rows=1000 --download
+```
+
+导入结果：
+
+- `spot_agg_trades_daily`：写入 1,000 条 normalized `trade` 事件。
+- `um_futures_agg_trades_daily`：写入 1,000 条 normalized `trade` 事件。
+- 输出目录：`crypto-workspace/data/raw/binance_vision/2026-05-09/`，已被 git ignore。
+- replay 验证：`provider=binance_vision`、`event-type=trade` 可匹配 2,000 条事件。
+- candidate scan 验证：BTC events 从 38,501 增加到 40,501；BTC liquidation events 仍为 1，long liquidation candidates 仍为 0。
+
+2026-05-12 补充：
+
+- 事件契约新增 normalized `kline` 类型。
+- Binance Vision 导入器 dry-run 已扩展到 `spot_klines_daily` 和 `um_futures_klines_daily`。
+- 免费历史源 manifest 中，上述四个 Binance Vision trade / kline 资源标记为 `implemented`；`liquidationSnapshot` 仍未实现为可靠输入。
+
+结论：
+
+- Binance Vision 导入链路可用，能补 spot / perp CVD 所需 trade 历史和 1m K 线价格上下文。
+- 它不补 liquidation，不能单独构成 Phase C 正样本。
+
+2026-05-12 爆仓数据 research 后补充：
+
+- 已把爆仓证据分为 `raw_exchange_liquidation`、`aggregate_liquidation_context` 和 `liquidation_level_heatmap` 三层。
+- Phase C evidence 新增 `derivativesContext.openInterestShock`，用 OI 明显下降交叉验证清算去杠杆，因为公开 liquidation feed 可能低报。
+- Phase C classification 已把 OI 去杠杆确认纳入未来 `spring_candidate` 硬条件。
+- 新增 CoinGlass pair liquidation history 导入入口，默认 dry-run；只有提供 `COINGLASS_API_KEY` 并显式 `--download` 才拉取 API。
+- 用户确认当前不打算手工导入数据；CoinGlass API 当前付费，因此真实下载暂跳过。
+
+```bash
+npm run crypto:history:coinglass -- --date=2026-05-09
+COINGLASS_API_KEY=<key> npm run crypto:history:coinglass -- --date=2026-05-09 --download
+```
+
+同日 Bybit 长跑复核：
+
+```bash
+npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_24h
+npm run crypto:capture -- --provider=bybit --duration-sec=5 --event-type=liquidation
+```
+
+结果：
+
+- `screen` 当前为 `not_found`，没有 24h Bybit capture 在后台运行。
+- 前台 5 秒 Bybit capture 退出，错误为 `getaddrinfo ENOTFOUND stream.bybit.com`。
+- 提权网络重试请求超时，未能验证非沙箱网络是否可连。
+
+结论：
+
+- 当前本机沙箱网络无法启动 Bybit 长跑采集。
+- 下一步在代理 / 外网权限可用后，先复跑 5 秒 smoke，再用 `screen -dmS wyckoff_bybit_liq_capture_24h npm run crypto:capture -- --provider=bybit --duration-sec=86400 --event-type=liquidation` 启动 24h 采集。由于不走 OKX 手工导入且 CoinGlass 付费先跳过，Bybit 免费实时采集是当前最现实的清算正样本来源。
+
+下一次验证目标：
+
+1. 解决本机 Bybit WebSocket DNS / 代理连通性。
+2. 启动并监控 24h 到 72h Bybit `allLiquidation.BTCUSDT` 采集。
+3. 用 Binance Vision 继续补 trade / kline 历史上下文。
+4. 如果仍长期没有 long liquidation 样本，再评估可程序化免费源或付费研究主源；不要走手工下载数据路线。
+
 ## 2026-05-07 Phase 0 初始探测
 
 ### 本地 dry-run
@@ -67,7 +180,7 @@ npm run crypto:probe -- --live --provider=okx --report=crypto-workspace/reports/
 当前最短路径不是继续写交易逻辑，而是先解决数据入口运行位置：
 
 1. 在真实部署网络或云主机上复跑 Binance / OKX live probe。
-2. 并行验证 Tardis.dev / CoinGlass / Kaiko 是否能提供历史数据下载或 API 试用。
+2. 如免费实时采集继续受阻，再评估 Tardis.dev / CoinGlass / Kaiko 的历史数据下载、API 试用和预算。
 3. 如果本机网络持续不可达，把 live collector 放到可访问交易所 API 的 relay / VPS 上，本地只消费 normalized event 文件或 HTTP relay。
 
 ## 下一次验证要回答的问题
@@ -222,7 +335,7 @@ npm run crypto:capture:status
 
 - 先跑 60 秒 smoke test。
 - 再跑 24h 到 72h liquidation capture。
-- 如果 24h 仍无样本，等待高波动窗口，或验证 CoinGlass / Velo / Kaiko 的历史清算数据。
+- 如果 24h 仍无样本，等待高波动窗口；付费聚合源只在免费采集确认成为瓶颈后再评估。
 
 ### 10 秒 smoke test
 
@@ -303,3 +416,54 @@ npm run crypto:phase-c:classify
 - 当前唯一真实 BTC 清算窗口是短仓强平主导，不能当成 Spring。
 - 分类器已能把空头挤压挡在 `short_squeeze_only`，避免误判为 `spring_candidate`。
 - 下一步需要扩充历史窗口，优先寻找多头强平主导、价格收回、盘口恢复的 Phase C 候选样本。
+
+## 2026-05-11 Bybit liquidation 补充源
+
+### 新增入口
+
+```bash
+npm run crypto:ws-probe -- --provider=bybit
+npm run crypto:capture -- --provider=bybit --duration-sec=86400 --event-type=liquidation
+npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_24h
+```
+
+### 映射规则
+
+- Bybit public linear WebSocket topic：`allLiquidation.BTCUSDT`。
+- `S=Buy` 表示多头被强平，映射为 `posSide=long`、`side=sell`。
+- `S=Sell` 表示空头被强平，映射为 `posSide=short`、`side=buy`。
+
+### live probe 结果
+
+```bash
+npm run crypto:ws-probe -- --live --provider=bybit
+```
+
+- transport：`proxy+wss`
+- subscriptionAck：`true`
+- status：`connected_no_sample`
+- latencyMs：约 12,001 ms
+
+12 秒窗口内未出现 liquidation 样本符合预期；关键验证点是公共频道可连接且订阅确认成功。
+
+### 24h capture 启动状态
+
+命令：
+
+```bash
+screen -dmS wyckoff_bybit_liq_capture_24h npm run crypto:capture -- --provider=bybit --duration-sec=86400 --event-type=liquidation
+npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_24h
+```
+
+结果：
+
+- screen：`20821.wyckoff_bybit_liq_capture_24h` detached / running。
+- status：`Capture screen: running`。
+- 当前 raw 扫描：BTC events 40,501，BTC liquidation events 1，parse errors 0。
+- 启动后短时间内尚未新增 Bybit BTC liquidation 样本；这符合清算流稀疏特性。
+- 这是 2026-05-11 的点时状态；2026-05-12 复核时该 screen 已变为 `not_found`，以后以本文顶部 2026-05-12 复核结论为准。
+
+### 结论
+
+- Bybit 当前作为免费实时 liquidation-only 补充源，用于增加后续长跑采集命中 BTC long liquidation 正样本的概率。
+- 它不替代 Binance / OKX 的 trade、book、OI、Funding 上下文，也不改变“先复核样本、再 paper trade”的边界。

@@ -176,6 +176,7 @@ function createWindowState(window, filesScanned) {
     lastMatchedAt: '',
     tradeFlow: createTradeFlowState(),
     orderBook: createOrderBookState(),
+    priceObservations: createPriceObservationState(),
     liquidation: createLiquidationState(),
     derivatives: createDerivativesState(),
     warnings: [],
@@ -186,6 +187,13 @@ function createTradeFlowState() {
   return {
     spot: createTradeBucket(),
     perp: createTradeBucket(),
+  }
+}
+
+function createPriceObservationState() {
+  return {
+    spot: [],
+    perp: [],
   }
 }
 
@@ -330,9 +338,9 @@ function matchesWindow(event, window) {
 
 function applyEvent(state, event) {
   if (event.eventType === 'trade') {
-    applyTrade(state.tradeFlow, event)
+    applyTrade(state, event)
   } else if (event.eventType === 'book_delta') {
-    applyBookDelta(state.orderBook, event)
+    applyBookDelta(state, event)
   } else if (event.eventType === 'liquidation') {
     applyLiquidation(state.liquidation, event)
   } else if (event.eventType === 'open_interest') {
@@ -344,8 +352,8 @@ function applyEvent(state, event) {
   }
 }
 
-function applyTrade(tradeFlow, event) {
-  const bucket = tradeFlow[event.instrumentType]
+function applyTrade(state, event) {
+  const bucket = state.tradeFlow[event.instrumentType]
   if (!bucket || !Array.isArray(event.payload?.data)) {
     return
   }
@@ -361,6 +369,7 @@ function applyTrade(tradeFlow, event) {
 
     bucket.trades += 1
     updatePriceRange(bucket, price)
+    recordPriceObservation(state, event.instrumentType, price, timestampFromPayloadItem(item, event), 'trade')
 
     const notional = size * price
     if (side === 'buy') {
@@ -378,8 +387,8 @@ function applyTrade(tradeFlow, event) {
   bucket.netRawNotional = bucket.buyRawNotional - bucket.sellRawNotional
 }
 
-function applyBookDelta(orderBook, event) {
-  const bucket = orderBook[event.instrumentType]
+function applyBookDelta(state, event) {
+  const bucket = state.orderBook[event.instrumentType]
   if (!bucket || !Array.isArray(event.payload?.data)) {
     return
   }
@@ -400,7 +409,10 @@ function applyBookDelta(orderBook, event) {
     applyLevels(bucket.asks, item.asks)
 
     if (bucket.initialized) {
-      updateBookSummary(bucket)
+      const summary = updateBookSummary(bucket)
+      if (summary) {
+        recordPriceObservation(state, event.instrumentType, summary.mid, event.eventTime, 'book_mid')
+      }
     }
   }
 }
@@ -429,7 +441,7 @@ function updateBookSummary(bucket) {
   const bestAsk = minKey(bucket.asks)
 
   if (!Number.isFinite(bestBid) || !Number.isFinite(bestAsk) || bestAsk <= bestBid) {
-    return
+    return null
   }
 
   const bidDepth = topDepth(bucket.bids, 'bid')
@@ -453,46 +465,86 @@ function updateBookSummary(bucket) {
   if (imbalance !== null) {
     bucket.averageImbalance = rollingAverage(bucket.averageImbalance, imbalance, previousSamples)
   }
+
+  return { mid, spread, bidDepth, askDepth, imbalance }
 }
 
 function applyLiquidation(liquidation, event) {
   liquidation.events += 1
 
-  for (const item of event.payload?.data || []) {
-    for (const detail of item.details || []) {
-      const rawSize = toNumber(detail.sz)
-      const bankruptcyPrice = toNumber(detail.bkPx)
-      const timestamp = detail.ts ? new Date(Number(detail.ts)).toISOString() : event.eventTime
-
-      liquidation.details += 1
-      if (Number.isFinite(rawSize)) {
-        liquidation.totalRawSize += rawSize
-        liquidation.maxRawSize = liquidation.maxRawSize === null ? rawSize : Math.max(liquidation.maxRawSize, rawSize)
-        if (detail.side === 'buy') {
-          liquidation.buyRawSize += rawSize
-        } else if (detail.side === 'sell') {
-          liquidation.sellRawSize += rawSize
-        }
-      }
-      if (Number.isFinite(bankruptcyPrice)) {
-        liquidation.minBankruptcyPrice =
-          liquidation.minBankruptcyPrice === null ? bankruptcyPrice : Math.min(liquidation.minBankruptcyPrice, bankruptcyPrice)
-        liquidation.maxBankruptcyPrice =
-          liquidation.maxBankruptcyPrice === null ? bankruptcyPrice : Math.max(liquidation.maxBankruptcyPrice, bankruptcyPrice)
-      }
-      updateTimestampRange(liquidation, timestamp)
-      if (liquidation.samples.length < 10) {
-        liquidation.samples.push({
-          timestamp,
-          instrument: item.instId,
-          side: detail.side,
-          posSide: detail.posSide,
-          rawSize,
-          bankruptcyPrice,
-        })
-      }
+  if (event.provider === 'bybit') {
+    for (const item of event.payload?.data || []) {
+      updateLiquidationDetail(liquidation, {
+        timestamp: item.T ? new Date(Number(item.T)).toISOString() : event.eventTime,
+        instrument: item.s,
+        side: normalizeBybitLiquidationSide(item.S),
+        posSide: normalizeBybitPositionSide(item.S),
+        rawSize: toNumber(item.v),
+        bankruptcyPrice: toNumber(item.p),
+      })
     }
   }
+
+  for (const item of event.payload?.data || []) {
+    for (const detail of item.details || []) {
+      updateLiquidationDetail(liquidation, {
+        timestamp: detail.ts ? new Date(Number(detail.ts)).toISOString() : event.eventTime,
+        instrument: item.instId,
+        side: detail.side,
+        posSide: detail.posSide,
+        rawSize: toNumber(detail.sz),
+        bankruptcyPrice: toNumber(detail.bkPx),
+      })
+    }
+  }
+}
+
+function updateLiquidationDetail(liquidation, detail) {
+  liquidation.details += 1
+  if (Number.isFinite(detail.rawSize)) {
+    liquidation.totalRawSize += detail.rawSize
+    liquidation.maxRawSize =
+      liquidation.maxRawSize === null ? detail.rawSize : Math.max(liquidation.maxRawSize, detail.rawSize)
+    if (detail.side === 'buy') {
+      liquidation.buyRawSize += detail.rawSize
+    } else if (detail.side === 'sell') {
+      liquidation.sellRawSize += detail.rawSize
+    }
+  }
+  if (Number.isFinite(detail.bankruptcyPrice)) {
+    liquidation.minBankruptcyPrice =
+      liquidation.minBankruptcyPrice === null
+        ? detail.bankruptcyPrice
+        : Math.min(liquidation.minBankruptcyPrice, detail.bankruptcyPrice)
+    liquidation.maxBankruptcyPrice =
+      liquidation.maxBankruptcyPrice === null
+        ? detail.bankruptcyPrice
+        : Math.max(liquidation.maxBankruptcyPrice, detail.bankruptcyPrice)
+  }
+  updateTimestampRange(liquidation, detail.timestamp)
+  if (liquidation.samples.length < 10) {
+    liquidation.samples.push(detail)
+  }
+}
+
+function normalizeBybitLiquidationSide(side) {
+  if (side === 'Buy') {
+    return 'sell'
+  }
+  if (side === 'Sell') {
+    return 'buy'
+  }
+  return ''
+}
+
+function normalizeBybitPositionSide(side) {
+  if (side === 'Buy') {
+    return 'long'
+  }
+  if (side === 'Sell') {
+    return 'short'
+  }
+  return ''
 }
 
 function applyOpenInterest(series, event) {
@@ -569,10 +621,12 @@ function finalizeEvidence(state, dataDir) {
     },
     evidence: {
       priceAction: buildPriceAction(state.tradeFlow, state.orderBook),
+      structureContext: buildStructureContext(state),
       tradeFlow: roundObject(state.tradeFlow),
+      cvdContext: buildCvdContext(state.tradeFlow),
       orderBookRecovery: buildOrderBookRecovery(state.orderBook),
       liquidationSpike: roundObject(state.liquidation),
-      derivativesContext: roundObject(state.derivatives),
+      derivativesContext: buildDerivativesContext(state.derivatives),
     },
     interpretation: {
       label: missingPhaseCInputs.length === 0 ? 'phase_c_evidence_ready' : 'insufficient_evidence',
@@ -580,6 +634,205 @@ function finalizeEvidence(state, dataDir) {
       note: 'Evidence only. This report does not classify Spring, LPS, or trade actions.',
     },
   }
+}
+
+function buildDerivativesContext(derivatives) {
+  return roundObject({
+    ...derivatives,
+    openInterestShock: summarizeOpenInterestShock(derivatives.openInterest),
+  })
+}
+
+function summarizeOpenInterestShock(openInterest) {
+  const changePct = openInterest.changePct
+  const change = openInterest.change
+  const samples = openInterest.samples || 0
+  const isObserved = samples >= 2 && changePct !== null
+
+  return {
+    samples,
+    first: openInterest.first,
+    last: openInterest.last,
+    change,
+    changePct,
+    direction: classifyOpenInterestShock(changePct),
+    isDeleveraging: isObserved && changePct <= -0.03,
+    quality: isObserved ? 'observed' : 'insufficient_open_interest_samples',
+    note: 'Open-interest drops help confirm liquidation-driven deleveraging when exchange liquidation feeds are underreported.',
+  }
+}
+
+function classifyOpenInterestShock(changePct) {
+  if (changePct === null) {
+    return 'unknown'
+  }
+  if (changePct <= -0.03) {
+    return 'sharp_decrease'
+  }
+  if (changePct < 0) {
+    return 'decrease'
+  }
+  if (changePct > 0.03) {
+    return 'sharp_increase'
+  }
+  if (changePct > 0) {
+    return 'increase'
+  }
+  return 'flat'
+}
+
+function buildCvdContext(tradeFlow) {
+  const spot = summarizeCvdBucket(tradeFlow.spot)
+  const perp = summarizeCvdBucket(tradeFlow.perp)
+
+  return {
+    spot,
+    perp,
+    divergence: classifyCvdDivergence(spot, perp),
+    phaseCFlowSupport: isPhaseCFlowSupportive(spot, perp),
+  }
+}
+
+function summarizeCvdBucket(bucket) {
+  const buyNotional = bucket.buyRawNotional || 0
+  const sellNotional = bucket.sellRawNotional || 0
+  const totalNotional = buyNotional + sellNotional
+  const notionalDelta = buyNotional - sellNotional
+  const deltaRatio = totalNotional === 0 ? null : notionalDelta / totalNotional
+
+  return roundObject({
+    trades: bucket.trades,
+    buyTrades: bucket.buyTrades,
+    sellTrades: bucket.sellTrades,
+    buyRawSize: bucket.buyRawSize,
+    sellRawSize: bucket.sellRawSize,
+    rawSizeDelta: bucket.buyRawSize - bucket.sellRawSize,
+    buyRawNotional: buyNotional,
+    sellRawNotional: sellNotional,
+    notionalDelta,
+    totalRawNotional: totalNotional,
+    deltaRatio,
+    bias: classifyCvdBias(deltaRatio),
+    quality: bucket.trades > 0 ? 'observed' : 'missing_trades',
+  })
+}
+
+function classifyCvdBias(deltaRatio) {
+  if (deltaRatio === null) {
+    return 'unknown'
+  }
+  if (deltaRatio >= 0.05) {
+    return 'demand'
+  }
+  if (deltaRatio <= -0.05) {
+    return 'supply'
+  }
+  return 'balanced'
+}
+
+function classifyCvdDivergence(spot, perp) {
+  if (spot.quality !== 'observed' || perp.quality !== 'observed') {
+    return 'insufficient_trade_flow'
+  }
+  if (spot.bias === 'demand' && perp.bias === 'supply') {
+    return 'spot_demand_perp_supply'
+  }
+  if (spot.bias === 'supply' && perp.bias === 'demand') {
+    return 'spot_supply_perp_demand'
+  }
+  if (spot.bias === 'demand' && perp.bias === 'demand') {
+    return 'broad_demand'
+  }
+  if (spot.bias === 'supply' && perp.bias === 'supply') {
+    return 'broad_supply'
+  }
+  return 'mixed_or_balanced'
+}
+
+function isPhaseCFlowSupportive(spot, perp) {
+  if (spot.quality !== 'observed' || perp.quality !== 'observed') {
+    return false
+  }
+  if (spot.bias === 'supply') {
+    return false
+  }
+  return spot.bias === 'demand' || (spot.bias === 'balanced' && perp.bias !== 'demand')
+}
+
+function buildStructureContext(state) {
+  return {
+    anchor: buildStructureAnchor(state),
+    spot: summarizeStructureForInstrument(state.priceObservations.spot, state),
+    perp: summarizeStructureForInstrument(state.priceObservations.perp, state),
+  }
+}
+
+function buildStructureAnchor(state) {
+  if (state.liquidation.firstAt) {
+    return {
+      type: 'first_liquidation',
+      timestamp: state.liquidation.firstAt,
+    }
+  }
+
+  return {
+    type: 'window_midpoint',
+    timestamp: midpointIso(state.window.start, state.window.end),
+  }
+}
+
+function summarizeStructureForInstrument(observations, state) {
+  const sorted = observations
+    .filter((observation) => Number.isFinite(observation.price) && observation.timestamp)
+    .sort((left, right) => left.timestamp.localeCompare(right.timestamp))
+  const sourceCounts = countObservationSources(sorted)
+
+  if (sorted.length < 3) {
+    return {
+      observations: sorted.length,
+      sourceCounts,
+      supportMethod: 'insufficient_observations',
+      support: null,
+      resistance: null,
+      supportBroken: false,
+      supportRecovered: false,
+      breakDepth: null,
+      breakDepthPct: null,
+    }
+  }
+
+  const anchorTimestamp = state.liquidation.firstAt || midpointIso(state.window.start, state.window.end)
+  const preAnchor = sorted.filter((observation) => observation.timestamp <= anchorTimestamp)
+  const fallbackSampleSize = Math.max(1, Math.ceil(sorted.length * 0.3))
+  const reference = preAnchor.length >= 3 ? preAnchor : sorted.slice(0, fallbackSampleSize)
+  const prices = reference.map((observation) => observation.price).sort((left, right) => left - right)
+  const support = quantile(prices, 0.1)
+  const resistance = quantile(prices, 0.9)
+  const postAnchor = sorted.filter((observation) => observation.timestamp >= anchorTimestamp)
+  const evaluation = postAnchor.length > 0 ? postAnchor : sorted
+  const postAnchorLow = minDefined(...evaluation.map((observation) => observation.price))
+  const last = sorted[sorted.length - 1].price
+  const supportBroken = support !== null && postAnchorLow !== null && postAnchorLow < support
+  const breakDepth = supportBroken ? support - postAnchorLow : null
+
+  return roundObject({
+    observations: sorted.length,
+    sourceCounts,
+    anchorTimestamp,
+    supportMethod: preAnchor.length >= 3 ? 'pre_anchor_p10_price' : 'first_window_slice_p10_price',
+    supportSampleCount: reference.length,
+    support,
+    resistance,
+    windowLow: minDefined(...sorted.map((observation) => observation.price)),
+    windowHigh: maxDefined(...sorted.map((observation) => observation.price)),
+    postAnchorLow,
+    last,
+    supportBroken,
+    supportRecovered: supportBroken && last !== null && support !== null && last >= support,
+    breakDepth,
+    breakDepthPct: breakDepth === null || support === 0 ? null : breakDepth / support,
+    distanceToResistance: resistance === null || last === null ? null : resistance - last,
+  })
 }
 
 function buildPriceAction(tradeFlow, orderBook) {
@@ -662,6 +915,8 @@ function extractPayloadSymbols(event) {
 
   if (Array.isArray(payload?.data)) {
     for (const item of payload.data) {
+      addSymbol(symbols, item.s)
+      addSymbol(symbols, item.symbol)
       addSymbol(symbols, item.instId)
       addSymbol(symbols, item.instFamily)
       addSymbol(symbols, item.uly)
@@ -701,11 +956,60 @@ function updateWindowBounds(state, event) {
   }
 }
 
+function recordPriceObservation(state, instrumentType, price, timestamp, source) {
+  const bucket = state.priceObservations[instrumentType]
+  if (!bucket || !Number.isFinite(price) || !timestamp) {
+    return
+  }
+
+  bucket.push({ timestamp, price, source })
+}
+
 function updatePriceRange(bucket, price) {
   bucket.firstPrice ??= price
   bucket.lastPrice = price
   bucket.minPrice = bucket.minPrice === null ? price : Math.min(bucket.minPrice, price)
   bucket.maxPrice = bucket.maxPrice === null ? price : Math.max(bucket.maxPrice, price)
+}
+
+function timestampFromPayloadItem(item, event) {
+  if (item?.ts) {
+    const parsed = new Date(Number(item.ts))
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed.toISOString()
+    }
+  }
+  return event.eventTime || event.receivedAt || ''
+}
+
+function midpointIso(start, end) {
+  return new Date((start.getTime() + end.getTime()) / 2).toISOString()
+}
+
+function countObservationSources(observations) {
+  return observations.reduce((counts, observation) => {
+    incrementCounter(counts, observation.source || 'unknown')
+    return counts
+  }, {})
+}
+
+function quantile(sortedValues, percentile) {
+  if (sortedValues.length === 0) {
+    return null
+  }
+  if (sortedValues.length === 1) {
+    return sortedValues[0]
+  }
+
+  const index = (sortedValues.length - 1) * percentile
+  const lowerIndex = Math.floor(index)
+  const upperIndex = Math.ceil(index)
+  if (lowerIndex === upperIndex) {
+    return sortedValues[lowerIndex]
+  }
+
+  const weight = index - lowerIndex
+  return sortedValues[lowerIndex] * (1 - weight) + sortedValues[upperIndex] * weight
 }
 
 function updateTimestampRange(bucket, timestamp) {

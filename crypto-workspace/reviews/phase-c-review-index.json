@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "reviewSet": "btc_phase_c_seed_reviews",
+  "updatedAt": "2026-05-11T00:00:00.000Z",
+  "labels": [
+    "confirmed_spring",
+    "failed_spring",
+    "short_squeeze_only",
+    "breakdown_risk",
+    "insufficient_evidence",
+    "exclude_bad_data"
+  ],
+  "notes": [
+    "Human reviews are used to calibrate machine-readable rules during research.",
+    "They are not live trade approvals and must not emit entries, exits, or position sizing."
+  ],
+  "reviews": [
+    {
+      "id": "okx-btc-liquidation-2026-05-09T12-14Z",
+      "reviewStatus": "reviewed",
+      "humanLabel": "short_squeeze_only",
+      "reviewer": "codex",
+      "reviewedAt": "2026-05-11T00:00:00.000Z",
+      "rationale": "BTC liquidation sample is short posSide / buy side. Price and book recovered, but the event is short-liquidation dominated, so it is a short squeeze control sample rather than a long-liquidation Spring candidate.",
+      "machineReadableFactors": {
+        "supportRecovered": true,
+        "liquidationDirection": "short",
+        "spotCvdBias": "supply",
+        "perpCvdBias": "supply",
+        "bookRecovery": true,
+        "fullSensorReady": true
+      }
+    },
+    {
+      "id": "okx-btc-no-liquidation-2026-05-09T12-33Z",
+      "reviewStatus": "reviewed",
+      "humanLabel": "insufficient_evidence",
+      "reviewer": "codex",
+      "reviewedAt": "2026-05-11T00:00:00.000Z",
+      "rationale": "Price, structure, trade flow, and book recovery are observable, but the window has no BTC liquidation evidence. It should remain an insufficient-evidence control sample for Phase C.",
+      "machineReadableFactors": {
+        "supportRecovered": true,
+        "liquidationDirection": "none",
+        "spotCvdBias": "demand",
+        "perpCvdBias": "demand",
+        "bookRecovery": true,
+        "fullSensorReady": false
+      }
+    }
+  ]
+}
