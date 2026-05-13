@@ -2,12 +2,13 @@
 
 这是一个独立的 Wyckoff 雷达原型工作区，使用 Vite + React 构建。
 
-当前目标已经分成两个互相隔离的工作面：
+当前目标已经分成多个互相隔离的工作面：
 
 - 前端仍保留 Wyckoff Radar MVP 控制台原型。
 - ptrade 策略暂时隔离到 `ptrade-workspace/`，用于回测、模拟盘和真实数据指标接入。
 - ptrade 文档主入口迁移到 `docs/ptrade-wyckoff/`，与 `ptrade-workspace/` 对齐。
 - BTC / crypto 方向以 `docs/crypto-wyckoff/` 记录目标、统一数据源研究和后续 `crypto-workspace/` 的实施边界。
+- MiniQMT / QMT 方向以 `docs/miniqmt-wyckoff/` 记录目标、XtQuant 适配契约和后续 `miniqmt-workspace/` 的实施边界。
 
 前端冲刺 1 的最小可交付物：
 
@@ -45,6 +46,13 @@ ptrade 当前首要功能清单：
 - 当前唯一真实清算窗口被分类为 `short_squeeze_only`，不是 `spring_candidate`；这说明系统已经能挡住“空头挤压误判成 Spring”的第一类风险。
 - 当前仍未完成结构支撑 / 阻力识别、正式 spot/perp CVD 判据、20 个历史窗口人工复核、Phase D LPS paper trade、P&F 仓位管理和 sandbox。
 
+截至 2026-05-13，MiniQMT / QMT 方向已初始化为独立 A 股券商适配工作面：
+
+- `miniqmt-workspace/` 已建立，用于后续 Windows 侧 XtQuant 外部 Python 适配器、配置样例和状态边界。
+- `docs/miniqmt-wyckoff/` 已建立，用于目标、阶段路径、adapter contract 和验证日志。
+- 当前 MiniQMT 路线只做环境预检查、行情 / L2 / 逐笔能力验证、标准化事件契约、录制 / 回放和模拟盘闭环设计。
+- 当前不连接真实资金账户，不保存账号凭据，不启用实盘下单。
+
 ## 项目定位
 
 这个项目独立于现有聊天项目，只承载 Wyckoff Radar MVP 的前端原型与后续迭代。
@@ -66,6 +74,14 @@ ptrade 当前首要功能清单：
 - L2 订单流样例接口与录制能力
 - 前端中的 bridge 健康状态和 L2 样例联调面板
 
+当前已具备的 MiniQMT 初始化能力：
+
+- 独立 `miniqmt-workspace/` 子工作区
+- MiniQMT / QMT 路线文档 `docs/miniqmt-wyckoff/`
+- XtQuant 外部 Python 适配器的最小 `health` / `quote` / `order_flow` / `account_snapshot` / `order_event` 契约
+- A 股候选池配置样例 `miniqmt-workspace/config/miniqmt-wyckoff-policy-pool.json`
+- Windows 侧 adapter、状态文件和录制文件的边界说明
+
 当前尚未完成的部分：
 
 - ptrade 模拟盘里的订单、成交、持仓与报告闭环验证
@@ -86,12 +102,18 @@ ptrade 当前首要功能清单：
 - [docs/ptrade-wyckoff/GOALS.md](docs/ptrade-wyckoff/GOALS.md)
 - [docs/ptrade-wyckoff/IMPLEMENTATION-PATH.md](docs/ptrade-wyckoff/IMPLEMENTATION-PATH.md)
 - [docs/wyckoff-mvp/QMT-INTEGRATION.md](docs/wyckoff-mvp/QMT-INTEGRATION.md)
+- [docs/miniqmt-wyckoff/README.md](docs/miniqmt-wyckoff/README.md)
+- [docs/miniqmt-wyckoff/GOALS.md](docs/miniqmt-wyckoff/GOALS.md)
+- [docs/miniqmt-wyckoff/IMPLEMENTATION-PATH.md](docs/miniqmt-wyckoff/IMPLEMENTATION-PATH.md)
+- [docs/miniqmt-wyckoff/ADAPTER-CONTRACT.md](docs/miniqmt-wyckoff/ADAPTER-CONTRACT.md)
+- [docs/miniqmt-wyckoff/VALIDATION-LOG.md](docs/miniqmt-wyckoff/VALIDATION-LOG.md)
 - [docs/crypto-wyckoff/README.md](docs/crypto-wyckoff/README.md)
 - [docs/crypto-wyckoff/GOALS.md](docs/crypto-wyckoff/GOALS.md)
 - [docs/crypto-wyckoff/DATA-SOURCES.md](docs/crypto-wyckoff/DATA-SOURCES.md)
 - [docs/crypto-wyckoff/IMPLEMENTATION-PATH.md](docs/crypto-wyckoff/IMPLEMENTATION-PATH.md)
 - [docs/crypto-wyckoff/VALIDATION-LOG.md](docs/crypto-wyckoff/VALIDATION-LOG.md)
 - [ptrade-workspace/README.md](ptrade-workspace/README.md)
+- [miniqmt-workspace/README.md](miniqmt-workspace/README.md)
 - [docs/wyckoff-mvp/TEST-CASES.md](docs/wyckoff-mvp/TEST-CASES.md)
 - [docs/reference/qmt/迅投QMT极速策略交易系统说明文档.pdf](docs/reference/qmt/迅投QMT极速策略交易系统说明文档.pdf)
 - [AGENTS.md](AGENTS.md)
