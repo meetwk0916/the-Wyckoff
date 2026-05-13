@@ -1,0 +1,25 @@
+{
+  "updatedAt": "2026-05-13",
+  "description": "MiniQMT Wyckoff seed candidate pool. This is sample research configuration only, not trading advice.",
+  "symbols": [
+    {
+      "symbol": "600570.XSHG",
+      "rawSymbol": "600570.SH",
+      "name": "恒生电子",
+      "theme": "金融 IT / 券商系统",
+      "researchTags": ["policy_beta", "fintech", "wyckoff_candidate"],
+      "enabled": false,
+      "notes": "样例标的，仅用于 adapter 字段映射和回放验证。"
+    },
+    {
+      "symbol": "000001.XSHE",
+      "rawSymbol": "000001.SZ",
+      "name": "平安银行",
+      "theme": "银行 / 沪深300对照",
+      "researchTags": ["large_cap", "beta_reference"],
+      "enabled": false,
+      "notes": "样例标的，用于 RS / Beta 与基础行情连通性验证。"
+    }
+  ]
+}
+
