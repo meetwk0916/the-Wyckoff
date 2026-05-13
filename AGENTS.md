@@ -50,6 +50,10 @@ BTC / crypto 方向是独立工作面，先阅读 `docs/crypto-wyckoff/README.md
 - `npm run crypto:fixtures`
 - `npm run crypto:phase-c:evidence`
 - `npm run crypto:phase-c:classify`
+- `npm run crypto:phase-c:review`
+- `npm run crypto:phase-c:verify`
+- `npm run crypto:phase-c:check`
+- `npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_24h_heartbeat`
 
 ## 工作规则
 

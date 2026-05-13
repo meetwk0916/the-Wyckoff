@@ -102,6 +102,7 @@ function scoreClassification(classification) {
     liquidation: scoreLiquidation(context.liquidationDirection),
     cvd: scoreCvd(context.cvdContext || {}),
     orderBook: scoreOrderBook(context.bookRecovery || {}),
+    funding: scoreFunding(context.fundingContext || {}, context.liquidationDirection),
     coverage: scoreCoverage(context.derivativesCoverage || {}, classification.warnings || []),
   }
   const total = Object.values(components).reduce((sum, component) => sum + component.points, 0)
@@ -187,6 +188,41 @@ function scoreOrderBook(bookRecovery) {
   if (bookRecovery.topDepthImproved) {
     points += 1
     reasons.push('top_depth_improved')
+  }
+  if (bookRecovery.askDepthRetreatedPost3m) {
+    points += 1
+    reasons.push('post3m_ask_depth_retreat')
+  }
+  if (bookRecovery.imbalanceImprovedPost3m) {
+    points += 1
+    reasons.push('post3m_imbalance_improved')
+  }
+
+  return { points, reasons }
+}
+
+function scoreFunding(fundingContext, liquidationDirection) {
+  const crowding = fundingContext.crowding || 'unknown'
+  const reasons = []
+  let points = 0
+
+  if (fundingContext.quality !== 'observed') {
+    return { points, reasons: ['funding_missing_or_unobserved'] }
+  }
+
+  if (liquidationDirection === 'long' && (crowding === 'crowded_long' || crowding === 'extreme_crowded_long')) {
+    points += fundingContext.extremeCrowding ? 2 : 1
+    reasons.push(fundingContext.extremeCrowding ? 'extreme_crowded_longs_confirmed' : 'crowded_longs_confirmed')
+  } else if (
+    liquidationDirection === 'short' &&
+    (crowding === 'crowded_short' || crowding === 'extreme_crowded_short')
+  ) {
+    points += fundingContext.extremeCrowding ? 2 : 1
+    reasons.push(fundingContext.extremeCrowding ? 'extreme_crowded_shorts_confirmed' : 'crowded_shorts_confirmed')
+  } else if (crowding === 'neutral') {
+    reasons.push('funding_neutral')
+  } else if (crowding !== 'unknown') {
+    reasons.push(`funding_${crowding}`)
   }
 
   return { points, reasons }

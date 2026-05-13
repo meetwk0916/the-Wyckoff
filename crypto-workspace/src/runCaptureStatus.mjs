@@ -5,6 +5,7 @@ import { dirname, join, resolve } from 'node:path'
 import { createInterface } from 'node:readline'
 import { promisify } from 'node:util'
 import { fileURLToPath } from 'node:url'
+import { classifyLiquidationDirection } from './utils/liquidations.mjs'
 
 const execFileAsync = promisify(execFile)
 const workspaceDir = dirname(dirname(fileURLToPath(import.meta.url)))
@@ -117,10 +118,24 @@ async function summarizeJsonlFile(filePath) {
     events: 0,
     btcEvents: 0,
     btcLiquidationEvents: 0,
+    btcLongLiquidationEvents: 0,
+    btcShortLiquidationEvents: 0,
+    btcMixedOrUnknownLiquidationEvents: 0,
     liquidationEvents: 0,
+    providerStatusEvents: 0,
+    firstEventAt: '',
+    lastEventAt: '',
+    lastEventPath: '',
     firstReceivedAt: '',
     lastReceivedAt: '',
+    lastProviderStatusAt: '',
+    lastProviderStatusPath: '',
     symbols: {},
+    liquidationDirections: {
+      long: 0,
+      short: 0,
+      mixedOrUnknown: 0,
+    },
     parseErrors: 0,
   }
 
@@ -148,9 +163,24 @@ async function summarizeJsonlFile(filePath) {
         summary.firstReceivedAt = event.receivedAt || ''
       }
       summary.lastReceivedAt = event.receivedAt || summary.lastReceivedAt
+      if (!summary.firstEventAt) {
+        summary.firstEventAt = event.eventTime || ''
+      }
+      if ((event.eventTime || '') >= (summary.lastEventAt || '')) {
+        summary.lastEventAt = event.eventTime || summary.lastEventAt
+        summary.lastEventPath = filePath
+      }
 
       if (event.eventType === 'liquidation') {
         summary.liquidationEvents += 1
+      }
+      if (event.eventType === 'provider_status') {
+        summary.providerStatusEvents += 1
+        const providerStatusAt = event.receivedAt || event.eventTime || ''
+        if (providerStatusAt >= (summary.lastProviderStatusAt || '')) {
+          summary.lastProviderStatusAt = providerStatusAt
+          summary.lastProviderStatusPath = filePath
+        }
       }
 
       const btcMatched = eventMatchesSymbol(event, 'BTC')
@@ -165,6 +195,8 @@ async function summarizeJsonlFile(filePath) {
 
       if (btcMatched && event.eventType === 'liquidation') {
         summary.btcLiquidationEvents += 1
+        const direction = classifyLiquidationDirection(event)
+        incrementLiquidationDirection(summary, direction)
       }
     } catch {
       summary.parseErrors += 1
@@ -229,7 +261,31 @@ function buildTotals(fileSummaries) {
       events: totals.events + file.events,
       btcEvents: totals.btcEvents + file.btcEvents,
       btcLiquidationEvents: totals.btcLiquidationEvents + file.btcLiquidationEvents,
+      btcLongLiquidationEvents: totals.btcLongLiquidationEvents + file.btcLongLiquidationEvents,
+      btcShortLiquidationEvents: totals.btcShortLiquidationEvents + file.btcShortLiquidationEvents,
+      btcMixedOrUnknownLiquidationEvents:
+        totals.btcMixedOrUnknownLiquidationEvents + file.btcMixedOrUnknownLiquidationEvents,
       liquidationEvents: totals.liquidationEvents + file.liquidationEvents,
+      providerStatusEvents: totals.providerStatusEvents + file.providerStatusEvents,
+      firstEventAt: earlierTimestamp(totals.firstEventAt, file.firstEventAt),
+      ...latestTimestampFields(
+        totals.lastEventAt,
+        totals.lastEventPath,
+        file.lastEventAt,
+        file.lastEventPath,
+        'lastEventAt',
+        'lastEventPath',
+      ),
+      firstReceivedAt: earlierTimestamp(totals.firstReceivedAt, file.firstReceivedAt),
+      lastReceivedAt: laterTimestamp(totals.lastReceivedAt, file.lastReceivedAt),
+      ...latestTimestampFields(
+        totals.lastProviderStatusAt,
+        totals.lastProviderStatusPath,
+        file.lastProviderStatusAt,
+        file.lastProviderStatusPath,
+        'lastProviderStatusAt',
+        'lastProviderStatusPath',
+      ),
       parseErrors: totals.parseErrors + file.parseErrors,
     }),
     {
@@ -238,10 +294,62 @@ function buildTotals(fileSummaries) {
       events: 0,
       btcEvents: 0,
       btcLiquidationEvents: 0,
+      btcLongLiquidationEvents: 0,
+      btcShortLiquidationEvents: 0,
+      btcMixedOrUnknownLiquidationEvents: 0,
       liquidationEvents: 0,
+      providerStatusEvents: 0,
+      firstEventAt: '',
+      lastEventAt: '',
+      lastEventPath: '',
+      firstReceivedAt: '',
+      lastReceivedAt: '',
+      lastProviderStatusAt: '',
+      lastProviderStatusPath: '',
       parseErrors: 0,
     },
   )
+}
+
+function incrementLiquidationDirection(summary, direction) {
+  if (direction === 'long') {
+    summary.btcLongLiquidationEvents += 1
+    summary.liquidationDirections.long += 1
+  } else if (direction === 'short') {
+    summary.btcShortLiquidationEvents += 1
+    summary.liquidationDirections.short += 1
+  } else {
+    summary.btcMixedOrUnknownLiquidationEvents += 1
+    summary.liquidationDirections.mixedOrUnknown += 1
+  }
+}
+
+function earlierTimestamp(left, right) {
+  if (!left) {
+    return right || ''
+  }
+  if (!right) {
+    return left
+  }
+  return left <= right ? left : right
+}
+
+function laterTimestamp(left, right) {
+  if (!left) {
+    return right || ''
+  }
+  if (!right) {
+    return left
+  }
+  return left >= right ? left : right
+}
+
+function latestTimestampFields(leftAt, leftPath, rightAt, rightPath, atKey, pathKey) {
+  if (!rightAt || (leftAt && leftAt >= rightAt)) {
+    return { [atKey]: leftAt, [pathKey]: leftPath }
+  }
+
+  return { [atKey]: rightAt, [pathKey]: rightPath }
 }
 
 function printSummary(report) {
@@ -251,7 +359,17 @@ function printSummary(report) {
   console.log(`Events: ${report.totals.events}`)
   console.log(`BTC events: ${report.totals.btcEvents}`)
   console.log(`BTC liquidation events: ${report.totals.btcLiquidationEvents}`)
+  console.log(`BTC long liquidation events: ${report.totals.btcLongLiquidationEvents}`)
+  console.log(`BTC short liquidation events: ${report.totals.btcShortLiquidationEvents}`)
+  console.log(`BTC mixed/unknown liquidation events: ${report.totals.btcMixedOrUnknownLiquidationEvents}`)
   console.log(`Liquidation events: ${report.totals.liquidationEvents}`)
+  console.log(`Provider status events: ${report.totals.providerStatusEvents}`)
+  console.log(`First event at: ${report.totals.firstEventAt || 'n/a'}`)
+  console.log(`Last event at: ${report.totals.lastEventAt || 'n/a'}`)
+  console.log(`Last event file: ${report.totals.lastEventPath || 'n/a'}`)
+  console.log(`Last received at: ${report.totals.lastReceivedAt || 'n/a'}`)
+  console.log(`Last provider status at: ${report.totals.lastProviderStatusAt || 'n/a'}`)
+  console.log(`Last provider status file: ${report.totals.lastProviderStatusPath || 'n/a'}`)
   console.log(`Parse errors: ${report.totals.parseErrors}`)
 }
 

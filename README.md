@@ -210,3 +210,7 @@ PTRADE_MODE=upstream PTRADE_UPSTREAM_URL=http://172.19.46.143:19090 npm run ptra
 - `npm run crypto:fixtures`：运行固定 BTC replay fixture 检查
 - `npm run crypto:phase-c:evidence`：从 fixture / 时间窗生成 Phase C 证据报告
 - `npm run crypto:phase-c:classify`：把 Phase C 证据保守分类为候选 / 风险 / 空头挤压 / 证据不足
+- `npm run crypto:phase-c:review`：运行 Phase C 人工复核索引评分
+- `npm run crypto:phase-c:verify`：检查固定 Phase C 对照样本标签和 review agreement
+- `npm run crypto:phase-c:check`：按 evidence → classify → review → verify 顺序运行完整 Phase C 守门链路
+- `npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_24h_heartbeat`：监控心跳版 Bybit liquidation 长跑采集

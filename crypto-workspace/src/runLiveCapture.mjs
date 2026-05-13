@@ -11,6 +11,7 @@ const defaultDataDir = resolve(workspaceDir, 'data/raw')
 const defaultReportPath = resolve(workspaceDir, 'reports/live-capture-last.json')
 const DEFAULT_DURATION_MS = 60_000
 const FRAME_TIMEOUT_MS = 10_000
+const STATUS_HEARTBEAT_MS = 5 * 60_000
 
 async function main() {
   const options = parseArgs(process.argv.slice(2))
@@ -58,13 +59,24 @@ async function captureStream(stream, options, startedAt) {
   let receivedMessages = 0
   let filteredMessages = 0
   let writtenEvents = 0
+  let statusEvents = 0
   let subscriptionAck = false
   let lastEventAt = ''
+  let lastStatusAt = ''
   let error = ''
   let nextKeepAliveAt = stream.keepAlive ? Date.now() + stream.keepAlive.intervalMs : 0
+  let nextStatusHeartbeatAt = Date.now() + STATUS_HEARTBEAT_MS
+
+  const writeStatusEvent = (status, message) => {
+    const event = buildStatusEvent(stream, status, message)
+    writer.write(`${JSON.stringify(event)}\n`)
+    statusEvents += 1
+    lastStatusAt = event.receivedAt
+  }
 
   try {
     socket = await openWebSocket(stream.url, { timeoutMs: FRAME_TIMEOUT_MS })
+    writeStatusEvent('capture_connected', 'WebSocket connected.')
 
     if (stream.subscribe) {
       socket.write(encodeFrame(JSON.stringify(stream.subscribe)))
@@ -74,6 +86,11 @@ async function captureStream(stream, options, startedAt) {
       if (stream.keepAlive && Date.now() >= nextKeepAliveAt) {
         socket.write(encodeFrame(JSON.stringify(stream.keepAlive.payload)))
         nextKeepAliveAt = Date.now() + stream.keepAlive.intervalMs
+      }
+
+      if (Date.now() >= nextStatusHeartbeatAt) {
+        writeStatusEvent('capture_heartbeat', `receivedMessages=${receivedMessages}; writtenEvents=${writtenEvents}`)
+        nextStatusHeartbeatAt = Date.now() + STATUS_HEARTBEAT_MS
       }
 
       const remainingMs = options.durationMs - (Date.now() - streamStartedAt)
@@ -97,6 +114,7 @@ async function captureStream(stream, options, startedAt) {
 
       if (isSubscriptionAck(payload)) {
         subscriptionAck = true
+        writeStatusEvent('subscription_ack', 'Provider acknowledged the subscription.')
 
         if (stream.ignoreSubscriptionAck) {
           continue
@@ -136,8 +154,10 @@ async function captureStream(stream, options, startedAt) {
     receivedMessages,
     filteredMessages,
     writtenEvents,
+    statusEvents,
     subscriptionAck,
     lastEventAt,
+    lastStatusAt,
     status: error ? 'error' : writtenEvents > 0 ? 'captured' : 'connected_no_sample',
     error,
   }

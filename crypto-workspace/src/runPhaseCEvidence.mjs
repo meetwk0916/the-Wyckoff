@@ -240,6 +240,7 @@ function createBookBucket() {
     firstTopDepth: null,
     lastTopDepth: null,
     averageImbalance: null,
+    observations: [],
   }
 }
 
@@ -412,9 +413,24 @@ function applyBookDelta(state, event) {
       const summary = updateBookSummary(bucket)
       if (summary) {
         recordPriceObservation(state, event.instrumentType, summary.mid, event.eventTime, 'book_mid')
+        recordBookObservation(bucket, event.eventTime, summary)
       }
     }
   }
+}
+
+function recordBookObservation(bucket, timestamp, summary) {
+  if (!timestamp) {
+    return
+  }
+
+  bucket.observations.push({
+    timestamp,
+    mid: summary.mid,
+    bidDepth: summary.bidDepth,
+    askDepth: summary.askDepth,
+    imbalance: summary.imbalance,
+  })
 }
 
 function applyLevels(levels, updates) {
@@ -624,7 +640,7 @@ function finalizeEvidence(state, dataDir) {
       structureContext: buildStructureContext(state),
       tradeFlow: roundObject(state.tradeFlow),
       cvdContext: buildCvdContext(state.tradeFlow),
-      orderBookRecovery: buildOrderBookRecovery(state.orderBook),
+      orderBookRecovery: buildOrderBookRecovery(state.orderBook, state),
       liquidationSpike: roundObject(state.liquidation),
       derivativesContext: buildDerivativesContext(state.derivatives),
     },
@@ -640,7 +656,48 @@ function buildDerivativesContext(derivatives) {
   return roundObject({
     ...derivatives,
     openInterestShock: summarizeOpenInterestShock(derivatives.openInterest),
+    fundingContext: summarizeFundingContext(derivatives.fundingRate),
   })
+}
+
+function summarizeFundingContext(fundingRate) {
+  const samples = fundingRate.samples || 0
+  const last = fundingRate.last
+  const maxAbs = maxAbsDefined(fundingRate.min, fundingRate.max)
+  const isObserved = samples > 0 && last !== null
+
+  return {
+    samples,
+    first: fundingRate.first,
+    last,
+    min: fundingRate.min,
+    max: fundingRate.max,
+    maxAbs,
+    crowding: classifyFundingCrowding(last),
+    extremeCrowding: isObserved && maxAbs !== null && maxAbs >= 0.0005,
+    quality: isObserved ? 'observed' : 'missing_funding_rate',
+    note:
+      'Funding is crowding context only. Positive values point to crowded longs; negative values point to crowded shorts.',
+  }
+}
+
+function classifyFundingCrowding(value) {
+  if (value === null) {
+    return 'unknown'
+  }
+  if (value >= 0.0005) {
+    return 'extreme_crowded_long'
+  }
+  if (value >= 0.0001) {
+    return 'crowded_long'
+  }
+  if (value <= -0.0005) {
+    return 'extreme_crowded_short'
+  }
+  if (value <= -0.0001) {
+    return 'crowded_short'
+  }
+  return 'neutral'
 }
 
 function summarizeOpenInterestShock(openInterest) {
@@ -859,14 +916,19 @@ function buildInstrumentPriceAction(trades, book) {
   })
 }
 
-function buildOrderBookRecovery(orderBook) {
+function buildOrderBookRecovery(orderBook, state) {
+  const anchorTimestamp = state.liquidation.firstAt || midpointIso(state.window.start, state.window.end)
+
   return {
-    spot: summarizeBookBucket(orderBook.spot),
-    perp: summarizeBookBucket(orderBook.perp),
+    anchorTimestamp,
+    spot: summarizeBookBucket(orderBook.spot, anchorTimestamp),
+    perp: summarizeBookBucket(orderBook.perp, anchorTimestamp),
   }
 }
 
-function summarizeBookBucket(bucket) {
+function summarizeBookBucket(bucket, anchorTimestamp) {
+  const buckets = buildBookTimeBuckets(bucket.observations, anchorTimestamp)
+
   return roundObject({
     samples: bucket.samples,
     snapshotMessages: bucket.snapshotMessages,
@@ -883,7 +945,56 @@ function summarizeBookBucket(bucket) {
     firstTopDepth: bucket.firstTopDepth,
     lastTopDepth: bucket.lastTopDepth,
     averageImbalance: bucket.averageImbalance,
+    buckets,
   })
+}
+
+function buildBookTimeBuckets(observations, anchorTimestamp) {
+  const anchorMs = new Date(anchorTimestamp).getTime()
+  if (!Number.isFinite(anchorMs)) {
+    return {
+      preAnchor: summarizeBookObservations([]),
+      post1m: summarizeBookObservations([]),
+      post3m: summarizeBookObservations([]),
+    }
+  }
+
+  return {
+    preAnchor: summarizeBookObservations(
+      observations.filter((observation) => new Date(observation.timestamp).getTime() <= anchorMs),
+    ),
+    post1m: summarizeBookObservations(
+      observations.filter((observation) => {
+        const timestamp = new Date(observation.timestamp).getTime()
+        return timestamp >= anchorMs && timestamp <= anchorMs + 60_000
+      }),
+    ),
+    post3m: summarizeBookObservations(
+      observations.filter((observation) => {
+        const timestamp = new Date(observation.timestamp).getTime()
+        return timestamp >= anchorMs && timestamp <= anchorMs + 180_000
+      }),
+    ),
+  }
+}
+
+function summarizeBookObservations(observations) {
+  const sorted = observations.slice().sort((left, right) => left.timestamp.localeCompare(right.timestamp))
+  const first = sorted[0]
+  const last = sorted[sorted.length - 1]
+
+  return {
+    samples: sorted.length,
+    firstAt: first?.timestamp || '',
+    lastAt: last?.timestamp || '',
+    averageBidDepth: averageDefined(sorted.map((observation) => observation.bidDepth)),
+    averageAskDepth: averageDefined(sorted.map((observation) => observation.askDepth)),
+    averageImbalance: averageDefined(sorted.map((observation) => observation.imbalance)),
+    bidDepthChange: first && last ? last.bidDepth - first.bidDepth : null,
+    askDepthChange: first && last ? last.askDepth - first.askDepth : null,
+    imbalanceChange: first && last ? last.imbalance - first.imbalance : null,
+    askDepthChangePct: first?.askDepth ? (last.askDepth - first.askDepth) / first.askDepth : null,
+  }
 }
 
 function buildReportTotals(results) {
@@ -1073,6 +1184,19 @@ function minDefined(...values) {
 function maxDefined(...values) {
   const defined = values.filter((value) => value !== null && value !== undefined)
   return defined.length === 0 ? null : Math.max(...defined)
+}
+
+function maxAbsDefined(...values) {
+  const defined = values.filter((value) => value !== null && value !== undefined).map((value) => Math.abs(value))
+  return defined.length === 0 ? null : Math.max(...defined)
+}
+
+function averageDefined(values) {
+  const defined = values.filter((value) => value !== null && value !== undefined)
+  if (defined.length === 0) {
+    return null
+  }
+  return defined.reduce((sum, value) => sum + value, 0) / defined.length
 }
 
 function roundObject(value) {

@@ -48,6 +48,7 @@
 - Phase C evidence / classification runner
 - Phase C evidence 内的启发式结构支撑 / 收回上下文
 - Phase C evidence 内的窗口级 spot / perp CVD 判据
+- Phase C evidence 内的 funding 拥挤度上下文和 anchor 前后盘口 1m / 3m 分桶
 - Phase C review index 与规则评分报告
 
 待实现：
@@ -218,13 +219,15 @@ npm run crypto:phase-c:evidence
 npm run crypto:phase-c:evidence -- --fixture=okx-btc-liquidation-2026-05-09T12-14Z
 ```
 
-当前阶段只输出 price action、trade flow、book recovery、liquidation spike、OI 和 Funding 上下文；它不把窗口判定为 Spring，也不输出交易动作。
+当前阶段只输出 price action、trade flow、book recovery、liquidation spike、OI 和 Funding 上下文；它不把窗口判定为 Spring，也不输出交易动作。Funding 现在只作为拥挤度上下文输出为 `crowded_long` / `crowded_short` / `neutral`，不单独作为 Spring 硬条件。
 
 当前 evidence 还会输出 `structureContext`：用窗口锚点前后的 spot / perp trade 与 book mid 观测估算局部支撑、阻力、跌破深度和支撑收回状态。这个结构对象是人工复核输入，不是自动交易动作；在没有更大样本和人工标注前，它只作为保守过滤条件。
 
 当前 evidence 还会输出 `cvdContext`：按 spot / perp trades 计算买卖 notional、CVD notional delta、delta ratio、demand / supply bias、spot-perp divergence 和 `phaseCFlowSupport`。这个判据用于区分现货承接、永续砸盘或广谱卖压，阈值仍需要随样本扩充继续校准。
 
 当前 evidence 还会输出 `derivativesContext.openInterestShock`：当窗口内 OI 至少有两个样本且跌幅达到 3% 以上时，标记为 `sharp_decrease` / `isDeleveraging=true`。这是对交易所爆仓流可能低报的交叉验证；未来 `spring_candidate` 必须有 OI 去杠杆确认，否则降为 `breakdown_risk` 或继续收集证据。
+
+当前 `orderBookRecovery` 还会围绕 first liquidation 或窗口中点输出 pre-anchor、post-1m 和 post-3m 盘口分桶，记录 bid depth、ask depth 和 imbalance 的均值与变化。这个对象用于解释洗盘后压单撤退或承接改善，不替代 long liquidation、结构收回、CVD 支持和 OI 去杠杆这些核心条件。
 
 Phase C 候选分类入口已经可用：
 
@@ -238,10 +241,14 @@ npm run crypto:phase-c:classify
 Phase C review index 和规则评分入口已经可用：
 
 ```bash
+npm run crypto:phase-c:check
 npm run crypto:phase-c:review
+npm run crypto:phase-c:verify
 ```
 
-`crypto-workspace/reviews/phase-c-review-index.json` 记录固定人工标签、复核理由和机器可读因子。生成的 review report 会输出规则评分、待复核 / 已复核计数、系统标签与复核标签的一致性。这个流程用于把人工复核沉淀为可编码规则，不是逐笔交易审批。
+`crypto-workspace/reviews/phase-c-review-index.json` 记录固定人工标签、复核理由和机器可读因子。生成的 review report 会输出规则评分、待复核 / 已复核计数、系统标签与复核标签的一致性。规则评分现在也纳入 funding 拥挤度和 post-3m 盘口 ask depth retreat / imbalance improvement 组件，作为后续阈值校准证据。这个流程用于把人工复核沉淀为可编码规则，不是逐笔交易审批。
+
+`crypto:phase-c:check` 会按顺序运行 evidence、classification、review 和 verify，避免 classification 读取旧 evidence report。`crypto:phase-c:verify` 会读取最新 classification / review / candidate reports，检查固定 short-squeeze 对照窗口和 insufficient-evidence 对照窗口的标签没有意外变化，并确认 review disagreement 仍为 0。候选扫描中的 long / short liquidation 数量只作为状态打印，不作为失败条件，避免未来抓到正样本时误报失败。
 
 Phase C 候选窗口扫描入口已经可用：
 
@@ -266,7 +273,7 @@ npm run crypto:history:free-sources
 npm run crypto:history:free-sources -- --provider=binance_vision --date=2026-05-09 --live
 ```
 
-当前 Binance Vision 检查确认：BTCUSDT spot / USDT-M futures 的 aggTrades 和 1m klines 可用，但同日 USDT-M `liquidationSnapshot` 404。它能补 trade / kline 历史，不能单独补 Phase C 清算正样本。
+当前 Binance Vision 检查确认：BTCUSDT spot / USDT-M futures 的 aggTrades 和 1m klines 可用，但 2026-05-09 的 USDT-M `liquidationSnapshot` 404。它能补 trade / kline 历史，不能单独补 Phase C 清算正样本。
 
 Binance Vision aggTrades / kline 导入入口已经可用：
 
@@ -293,6 +300,7 @@ Bybit 实时 liquidation 补充入口：
 npm run crypto:ws-probe -- --provider=bybit
 npm run crypto:capture -- --provider=bybit --duration-sec=86400 --event-type=liquidation
 npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_24h
+npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_24h_heartbeat
 ```
 
-Bybit `allLiquidation.BTCUSDT` 是 liquidation-only 源：它能提高免费实时 BTC 清算样本命中率，但不能替代 Binance / OKX 的 trade、book、OI、Funding 上下文。
+Bybit `allLiquidation.BTCUSDT` 是 liquidation-only 源：它能提高免费实时 BTC 清算样本命中率，但不能替代 Binance / OKX 的 trade、book、OI、Funding 上下文。心跳版长跑 screen 使用 `wyckoff_bybit_liq_capture_24h_heartbeat`；`capture:status` 会输出 BTC long / short liquidation 计数、provider status 计数，以及最新事件和最新 provider status 的来源文件。
