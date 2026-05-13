@@ -30,7 +30,9 @@ It is not a trading bot. It must not store exchange API keys or connect to funde
 - `src/runPhaseCEvidence.mjs`: CLI entrypoint for Phase C evidence aggregation without Spring classification.
 - `src/runPhaseCClassify.mjs`: CLI entrypoint for conservative Phase C candidate classification.
 - `src/runPhaseCReview.mjs`: CLI entrypoint for review-index scoring and rule-calibration summaries.
+- `src/runPhaseCVerify.mjs`: CLI guardrail for pinned Phase C labels and review agreement.
 - `src/runPhaseCCandidateScan.mjs`: CLI entrypoint for scanning raw JSONL into Phase C liquidation candidate windows and fixture drafts.
+- `src/utils/liquidations.mjs`: shared liquidation detail extraction and long / short direction semantics for status and candidate scans.
 - `reviews/phase-c-review-index.json`: machine-readable human review labels for pinned Phase C windows.
 - `data/README.md`: local market data boundary.
 - `reports/README.md`: generated provider probe report boundary.
@@ -138,10 +140,11 @@ Check active capture status:
 ```bash
 npm run crypto:capture:status
 npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_24h
+npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_24h_heartbeat
 ```
 
-This scans raw JSONL files, counts liquidation events, counts BTC-related events, separates true BTC liquidation events, and checks the `wyckoff_liq_capture_24h` screen session.
-Use the `--screen` override for provider-specific long-running captures such as `wyckoff_bybit_liq_capture_24h`.
+This scans raw JSONL files, counts liquidation events, counts BTC-related events, separates true BTC liquidation events, reports BTC long / short liquidation direction counts, reports provider status heartbeat counts and latest source files, and checks the `wyckoff_liq_capture_24h` screen session.
+Use the `--screen` override for provider-specific long-running captures. The heartbeat-enabled Bybit session uses `wyckoff_bybit_liq_capture_24h_heartbeat`.
 
 Scan raw JSONL into Phase C candidate windows:
 
@@ -178,7 +181,7 @@ npm run crypto:phase-c:evidence
 npm run crypto:phase-c:evidence -- --fixture=okx-btc-liquidation-2026-05-09T12-14Z
 ```
 
-The evidence report is written to `crypto-workspace/reports/phase-c-evidence-last.json`. It reports observable price action, trade flow, spot / perp CVD context, book recovery, liquidation, OI, OI shock, and Funding context. It does not classify Spring, LPS, or trade actions.
+The evidence report is written to `crypto-workspace/reports/phase-c-evidence-last.json`. It reports observable price action, trade flow, spot / perp CVD context, book recovery, liquidation, OI, OI shock, and Funding context. Funding is reported as crowding context (`crowded_long`, `crowded_short`, or neutral), not as a standalone Spring trigger. Order book recovery now also includes anchor-relative pre / post 1m / post 3m buckets for bid depth, ask depth, and imbalance changes. It does not classify Spring, LPS, or trade actions.
 The evidence report also includes a conservative `structureContext` block. It estimates a local support / resistance band from spot and perp price observations around the window anchor, then records whether support was broken and recovered. This is review evidence, not a trade trigger.
 
 Classify Phase C candidates from an evidence report:
@@ -187,7 +190,7 @@ Classify Phase C candidates from an evidence report:
 npm run crypto:phase-c:classify
 ```
 
-The classification report is written to `crypto-workspace/reports/phase-c-classification-last.json`. Labels are limited to `spring_candidate`, `breakdown_risk`, `short_squeeze_only`, and `insufficient_evidence`. A future Spring candidate must pass liquidation direction, structure recovery, book recovery, Phase C CVD support, and OI deleveraging checks. This report still does not emit entries, exits, position sizing, or trade actions.
+The classification report is written to `crypto-workspace/reports/phase-c-classification-last.json`. Labels are limited to `spring_candidate`, `breakdown_risk`, `short_squeeze_only`, and `insufficient_evidence`. A future Spring candidate must pass liquidation direction, structure recovery, book recovery, Phase C CVD support, and OI deleveraging checks. Funding crowding and 1m / 3m order book bucket changes are included as explanatory context and confidence inputs, not as permission to skip the core Spring checks. This report still does not emit entries, exits, position sizing, or trade actions.
 
 Run the Phase C review index and scoring report:
 
@@ -195,7 +198,16 @@ Run the Phase C review index and scoring report:
 npm run crypto:phase-c:review
 ```
 
-The review index lives at `crypto-workspace/reviews/phase-c-review-index.json`. It records fixed human labels, rationales, and machine-readable factors for each reviewed window. The generated review report is written to `crypto-workspace/reports/phase-c-review-last.json` and summarizes rule scores, reviewed / pending counts, and system-vs-review agreement. This is research calibration only; it does not approve live or paper trades.
+The review index lives at `crypto-workspace/reviews/phase-c-review-index.json`. It records fixed human labels, rationales, and machine-readable factors for each reviewed window. The generated review report is written to `crypto-workspace/reports/phase-c-review-last.json` and summarizes rule scores, reviewed / pending counts, and system-vs-review agreement. Review scoring now includes funding crowding and post-3m order book retreat / imbalance components as calibration evidence. This is research calibration only; it does not approve live or paper trades.
+
+Verify pinned Phase C guardrails:
+
+```bash
+npm run crypto:phase-c:check
+npm run crypto:phase-c:verify
+```
+
+`crypto:phase-c:check` runs evidence, classification, review, and verification in the required order. `crypto:phase-c:verify` only reads the latest classification, review, and candidate reports. It fails if the pinned short-squeeze and insufficient-evidence fixtures change labels unexpectedly or if review disagreement appears. Candidate long / short liquidation counts are printed as status only, so future positive long-liquidation samples do not break the guardrail.
 
 ## Phase 0 Exit Criteria
 
@@ -206,16 +218,19 @@ The review index lives at `crypto-workspace/reviews/phase-c-review-index.json`. 
 
 ## Current Status
 
-As of 2026-05-11:
+As of 2026-05-13:
 
 - Two pinned OKX BTC replay fixtures exist in `config/replay-fixtures.json`.
 - `npm run crypto:fixtures` passes both fixtures.
 - `npm run crypto:phase-c:evidence` emits one Phase C-ready evidence window and one insufficient-evidence control window, including local structure support / recovery context.
 - `npm run crypto:phase-c:evidence` also emits first-pass spot / perp CVD context with notional delta, delta ratio, demand / supply bias, divergence, and Phase C flow support.
-- `npm run crypto:phase-c:classify` classifies the current BTC liquidation window as `short_squeeze_only`, not `spring_candidate`; future Spring candidates must also recover estimated structure support and pass CVD support.
+- Funding crowding and post-anchor 1m / 3m order book changes are now captured as calibration context; they do not replace the hard Spring gates.
+- `npm run crypto:phase-c:classify` classifies the current BTC liquidation window as `short_squeeze_only`, not `spring_candidate`; future Spring candidates must still pass long liquidation direction, structure recovery, book recovery, Phase C CVD support, and OI deleveraging.
 - `npm run crypto:phase-c:review` reads the seed review index, scores both windows, and reports 2 reviewed / 0 pending with system-review agreement.
-- `npm run crypto:phase-c:candidates` currently finds 1 BTC liquidation candidate in local raw data: 0 long liquidation candidates and 1 short liquidation control window.
+- `npm run crypto:phase-c:check` is the preferred local guardrail because it runs evidence, classify, review, and verify in order.
+- `npm run crypto:phase-c:candidates` currently finds 1 BTC liquidation candidate in local raw data: 0 long liquidation candidates and 1 short liquidation control window. This means no `spring_candidate` sample has been captured yet, which is expected for sparse liquidation streams.
 - `npm run crypto:history:free-sources -- --provider=binance_vision --date=2026-05-09 --live` confirms Binance Vision spot/perp aggTrades and 1m klines are available for that date, while USDT-M `liquidationSnapshot` is unavailable.
 - `npm run crypto:history:binance-vision -- --date=2026-05-09 --limit-rows=1000 --download` imports 1,000 spot and 1,000 USDT-M futures aggTrade rows as normalized trade events. Candidate scan sees them as additional BTC events but still finds 0 long liquidation candidates.
-- Bybit public WebSocket support is now wired as an additional free realtime liquidation source for future long-running capture.
+- Bybit public WebSocket support is now wired as an additional free realtime liquidation source. The heartbeat-enabled long-running session name is `wyckoff_bybit_liq_capture_24h_heartbeat`, and its status command is `npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_24h_heartbeat`.
+- Capture status now reports provider heartbeat counts and BTC long / short liquidation direction counts using the shared liquidation utility in `src/utils/liquidations.mjs`.
 - The next BTC work is sample expansion, CVD threshold calibration, and broader review-index coverage, not trade execution.

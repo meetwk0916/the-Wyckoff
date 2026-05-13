@@ -124,11 +124,12 @@
 
 ## 当前低门槛推荐路径
 
-1. 先用 `npm run crypto:phase-c:candidates` 确认本地 raw 数据缺口。
-2. 优先恢复 Bybit `allLiquidation.BTCUSDT` 长跑采集，前提是本机代理 / DNS 能连通。
-3. 继续使用 Binance Vision 的 trade / kline 历史补价格和 CVD 上下文。
-4. 暂跳过 OKX 手工下载和 CoinGlass 付费 API；它们的影响是短期内更难快速补出历史 long liquidation 正样本，但不会削弱当前分类器的防误判能力。
-5. 如果免费实时采集仍拿不到 long liquidation 样本，再评估可程序化免费源或 Tardis.dev / Kaiko 级别的付费研究主源。
+1. 先用 `npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_24h_heartbeat` 确认 Bybit 心跳版 liquidation 长跑采集仍在落盘。
+2. 再用 `npm run crypto:phase-c:candidates` 确认本地 raw 数据缺口，重点看 BTC long / short liquidation 方向计数。
+3. 每次改 Phase C evidence / classify / review 规则后，用 `npm run crypto:phase-c:check` 跑完整守门链路，避免固定对照样本标签漂移。
+4. 继续使用 Binance Vision 的 trade / kline 历史补价格和 CVD 上下文。
+5. 暂跳过 OKX 手工下载和 CoinGlass 付费 API；它们的影响是短期内更难快速补出历史 long liquidation 正样本，但不会削弱当前分类器的防误判能力。
+6. 如果免费实时采集仍拿不到 long liquidation 样本，再评估可程序化免费源或 Tardis.dev / Kaiko 级别的付费研究主源。
 
 ## 当前推荐数据架构
 
@@ -179,7 +180,7 @@ provider -> raw event -> normalized event -> local append-only store -> replay -
 - 能否下载 order book snapshot / delta。
 - 能否下载 OI、Funding 和 liquidation events。
 - 最小时间粒度是多少。
-- 历史覆盖能否覆盖至少最近 6 个月。
+- 历史覆盖能否覆盖验证日向前至少 6 个月。
 
 ### V-2 实时数据验证
 

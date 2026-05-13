@@ -1,5 +1,94 @@
 # BTC 数据源验证记录
 
+## 2026-05-13 Bybit 24h liquidation capture 重启
+
+### Phase C evidence / classification 增强
+
+新增内容：
+
+- `derivativesContext.fundingContext`：把 Funding 从“是否有样本”升级为拥挤度上下文，输出 `crowded_long`、`crowded_short`、`neutral` 和 `extremeCrowding`。它不是 Spring 硬条件，也不会替代 liquidation / structure / CVD / OI。
+- `orderBookRecovery.*.buckets`：围绕 first liquidation 或窗口中点输出 pre-anchor、post-1m 和 post-3m 分桶，记录 bid depth、ask depth、imbalance 的均值与变化。
+- `phase-c:classify` 会把 funding context 和盘口分桶带入 `context`；盘口 3 分钟 ask depth retreat / imbalance improvement 只影响解释和信心，不绕过核心 Spring 条件。
+- `phase-c:review` 的规则评分新增 funding 组件，并把 post-3m ask depth retreat / imbalance improvement 纳入 order book 评分，用于人工复核后的阈值校准。
+
+验证结果：
+
+```bash
+npm run crypto:phase-c:check
+npm run crypto:phase-c:evidence
+npm run crypto:phase-c:classify
+npm run crypto:phase-c:review
+npm run crypto:phase-c:verify
+```
+
+- `okx-btc-liquidation-2026-05-09T12-14Z`：仍为 `short_squeeze_only`。
+- `okx-btc-no-liquidation-2026-05-09T12-33Z`：仍为 `insufficient_evidence`。
+- Review agreement：2 / 2。
+- Phase C verification：passed。
+- 当前 short liquidation 对照窗口 funding 为 `neutral`；perp post-3m bucket 出现 ask depth retreat 和 imbalance improvement，但不会被误判为 Spring，因为清算方向仍是 short。
+
+结论：
+
+- Funding 和盘口时间分桶已进入证据对象，但当前不会放宽 `spring_candidate` 判定。
+- 下一步仍是扩充 `long liquidation + 价格收回 + 盘口恢复` 正样本，再校准 funding / CVD / order book 阈值。
+
+### Bybit 24h liquidation capture 重启
+
+当前本地 raw 数据扫描结果：
+
+```bash
+npm run crypto:phase-c:candidates
+```
+
+结果：
+
+- BTC events：40,505
+- BTC liquidation events：1
+- long liquidation candidates：0
+- short liquidation candidates：1
+- full sensor ready candidates：1
+
+Bybit 5 秒 smoke test：
+
+```bash
+npm run crypto:capture -- --provider=bybit --duration-sec=5 --event-type=liquidation
+```
+
+结果：
+
+- 普通沙箱执行会被本机代理连接限制拦截：`connect EPERM 127.0.0.1:7890`。
+- 提权网络执行后 Bybit public WebSocket 可连接。
+- `subscriptionAck`：`true`
+- `status`：`connected_no_sample`
+- `receivedMessages`：1
+- `writtenEvents`：0
+
+24h 长跑采集已重新启动：
+
+```bash
+screen -dmS wyckoff_bybit_liq_capture_24h npm run crypto:capture -- --provider=bybit --duration-sec=86400 --event-type=liquidation
+npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_24h
+screen -dmS wyckoff_bybit_liq_capture_24h_heartbeat npm run crypto:capture -- --provider=bybit --duration-sec=86400 --event-type=liquidation
+npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_24h_heartbeat
+```
+
+启动后状态：
+
+- screen：`15996.wyckoff_bybit_liq_capture_24h` detached / running。
+- screen：`18014.wyckoff_bybit_liq_capture_24h_heartbeat` detached / running。
+- status：`Capture screen: running`。
+- raw 扫描：Files 163，Events 40,521，BTC events 40,507，BTC liquidation events 1，BTC long liquidation events 0，BTC short liquidation events 1，Liquidation events 14，Provider status events 17，parse errors 0。
+- 最新 provider status 文件：`crypto-workspace/data/raw/bybit/2026-05-13/linear_all_liquidation-2026-05-13T14-03-15-597Z.jsonl`，来自新心跳版 24h Bybit capture；已写入 `capture_connected` 和 `subscription_ack`，后续应每 5 分钟写入 `capture_heartbeat`。
+- 旧的 `wyckoff_bybit_liq_capture_24h` 仍在运行，但它启动于心跳落盘逻辑之前；后续优先监控 `wyckoff_bybit_liq_capture_24h_heartbeat`。
+- 新增 Bybit 输出文件：`crypto-workspace/data/raw/bybit/2026-05-13/linear_all_liquidation-2026-05-13T13-16-56-705Z.jsonl`。
+- 新增心跳版 Bybit 输出文件：`crypto-workspace/data/raw/bybit/2026-05-13/linear_all_liquidation-2026-05-13T14-03-15-597Z.jsonl`。
+
+结论：
+
+- 2026-05-12 的 Bybit DNS / 沙箱网络失败不是当前最终状态；在可用代理 / 提权网络下 Bybit liquidation stream 已恢复可连接。
+- 当前仍未新增 BTC long liquidation 正样本；下一步应持续监控 24h 到 72h Bybit 采集，再用 candidate scan 查找 `long liquidation + 价格收回 + 盘口恢复` 窗口。
+- 固定复核命令：`npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_24h_heartbeat` 和 `npm run crypto:phase-c:candidates`。前者现在会直接输出 BTC long / short liquidation 方向计数、provider status 计数和最新来源文件。
+
 ## 2026-05-11 低门槛历史数据源复查
 
 当前本地 raw 数据扫描结果：
@@ -88,7 +177,7 @@ npm run crypto:history:coinglass -- --date=2026-05-09
 COINGLASS_API_KEY=<key> npm run crypto:history:coinglass -- --date=2026-05-09 --download
 ```
 
-同日 Bybit 长跑复核：
+2026-05-12 Bybit 长跑复核：
 
 ```bash
 npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_24h

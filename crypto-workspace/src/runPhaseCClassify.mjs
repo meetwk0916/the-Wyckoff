@@ -70,6 +70,7 @@ function classifyWindow(window) {
     tradeFlowBias: buildTradeFlowBias(tradeFlow),
     derivativesCoverage: buildDerivativesCoverage(evidence.derivativesContext || {}),
     openInterestShock: buildOpenInterestShock(evidence.derivativesContext?.openInterestShock || {}),
+    fundingContext: buildFundingContext(evidence.derivativesContext?.fundingContext || {}),
   }
 
   if (!window.readiness?.phaseCInputsReady) {
@@ -99,6 +100,9 @@ function classifyWindow(window) {
     reasons.push('structure_support_recovered')
     reasons.push('phase_c_cvd_supportive')
     reasons.push('open_interest_deleveraging_confirmed')
+    if (context.fundingContext.crowding === 'crowded_long' || context.fundingContext.crowding === 'extreme_crowded_long') {
+      reasons.push('funding_confirms_crowded_longs')
+    }
   } else if (label === 'breakdown_risk') {
     reasons.push('washout_recovery_not_confirmed')
     if (context.liquidationDirection === 'long' && !context.structureContext.supportRecovered) {
@@ -227,10 +231,13 @@ function buildBookRecovery(orderBookRecovery) {
   const perp = summarizeBookRecovery(orderBookRecovery.perp)
 
   return {
+    anchorTimestamp: orderBookRecovery.anchorTimestamp || '',
     spot,
     perp,
     recoveredFromLow: spot.recoveredFromLow || perp.recoveredFromLow,
     topDepthImproved: spot.topDepthImproved || perp.topDepthImproved,
+    askDepthRetreatedPost3m: spot.askDepthRetreatedPost3m || perp.askDepthRetreatedPost3m,
+    imbalanceImprovedPost3m: spot.imbalanceImprovedPost3m || perp.imbalanceImprovedPost3m,
   }
 }
 
@@ -246,7 +253,20 @@ function summarizeBookRecovery(book) {
     firstTopDepthImbalance: firstImbalance,
     lastTopDepthImbalance: lastImbalance,
     topDepthImproved: firstImbalance !== null && lastImbalance !== null && lastImbalance > firstImbalance,
+    buckets: book?.buckets || {},
+    askDepthRetreatedPost3m: isAskDepthRetreat(book?.buckets?.post3m),
+    imbalanceImprovedPost3m: isImbalanceImproved(book?.buckets?.post3m),
   }
+}
+
+function isAskDepthRetreat(bucket) {
+  const askDepthChangePct = numberOrNull(bucket?.askDepthChangePct)
+  return askDepthChangePct !== null && askDepthChangePct <= -0.1
+}
+
+function isImbalanceImproved(bucket) {
+  const imbalanceChange = numberOrNull(bucket?.imbalanceChange)
+  return imbalanceChange !== null && imbalanceChange > 0
 }
 
 function buildTradeFlowBias(tradeFlow) {
@@ -371,6 +391,20 @@ function buildOpenInterestShock(openInterestShock) {
   }
 }
 
+function buildFundingContext(fundingContext) {
+  return {
+    samples: fundingContext.samples || 0,
+    first: numberOrNull(fundingContext.first),
+    last: numberOrNull(fundingContext.last),
+    min: numberOrNull(fundingContext.min),
+    max: numberOrNull(fundingContext.max),
+    maxAbs: numberOrNull(fundingContext.maxAbs),
+    crowding: fundingContext.crowding || 'unknown',
+    extremeCrowding: Boolean(fundingContext.extremeCrowding),
+    quality: fundingContext.quality || 'missing',
+  }
+}
+
 function estimateConfidence(label, context, warnings) {
   if (label === 'insufficient_evidence') {
     return 'low'
@@ -378,7 +412,12 @@ function estimateConfidence(label, context, warnings) {
   if (warnings.length > 0) {
     return 'medium'
   }
-  if (label === 'spring_candidate' && context.priceRecovery.bothRecoveredFromLow && context.bookRecovery.topDepthImproved) {
+  if (
+    label === 'spring_candidate' &&
+    context.priceRecovery.bothRecoveredFromLow &&
+    context.bookRecovery.topDepthImproved &&
+    context.bookRecovery.askDepthRetreatedPost3m
+  ) {
     return 'medium'
   }
   return 'low'
