@@ -11,6 +11,7 @@ def initialize(context):
     g.enable_pilot_entries = True
     g.enable_pilot_promotion = True
     g.enable_open_order_recovery = True
+    g.enable_account_level_audit = True
     g.use_runtime_universe = True
     g.follow_runtime_symbols_for_policy_pool = True
     g.prune_state_to_active_symbols = True
@@ -66,6 +67,7 @@ def initialize(context):
     g.trim_fraction = 0.50
     g.runner_position_fraction = 0.50
     g.open_order_timeout_bars = 3
+    g.max_execution_event_buffer = 200
     g.benchmark_symbol = normalize_symbol('000300.XSHG')
 
     g.report_file = 'ptrade-wyckoff-trade-report-last.json'
@@ -74,6 +76,10 @@ def initialize(context):
     g.symbols, g.symbols_source = resolve_strategy_symbols(context)
     g.policy_symbol_pool = list(g.symbols)
     g.latest_symbol_reports = []
+    g.order_response_events = []
+    g.trade_response_events = []
+    g.known_strategy_order_ids = []
+    g.known_strategy_entrust_nos = []
     g.runtime_capabilities = {}
     g.strategy_state = load_strategy_state()
     if getattr(g, 'prune_state_to_active_symbols', True):
@@ -242,6 +248,22 @@ def after_trading_end(context, data):
     persist_strategy_state()
 
 
+def on_order_response(context, order_list):
+    events = append_execution_response_events('orderResponse', context, order_list)
+    for event in events:
+        for row in event.get('rows') or []:
+            record_strategy_order_keys(row)
+    log.info('Wyckoff ptrade order response => {0}'.format(json.dumps(events, ensure_ascii=False)))
+
+
+def on_trade_response(context, trade_list):
+    events = append_execution_response_events('tradeResponse', context, trade_list)
+    for event in events:
+        for row in event.get('rows') or []:
+            record_strategy_order_keys(row)
+    log.info('Wyckoff ptrade trade response => {0}'.format(json.dumps(events, ensure_ascii=False)))
+
+
 def build_symbol_plan(context, data, symbol):
     symbol = normalize_symbol(symbol)
     reference_price = get_reference_price(symbol, data)
@@ -327,6 +349,8 @@ def execute_symbol_plan(symbol, plan):
             order_id = order(symbol, delta_amount)
         else:
             order_id = order(symbol, delta_amount, limit_price=limit_price)
+
+        record_submitted_order(order_id)
 
         return {
             'status': 'submitted' if order_id else 'rejected',
@@ -2012,7 +2036,248 @@ def round_nullable(value, digits):
     return round(safe_float(value), digits)
 
 
+def ensure_execution_response_state():
+    if not hasattr(g, 'order_response_events'):
+        g.order_response_events = []
+    if not hasattr(g, 'trade_response_events'):
+        g.trade_response_events = []
+    if not hasattr(g, 'known_strategy_order_ids'):
+        g.known_strategy_order_ids = []
+    if not hasattr(g, 'known_strategy_entrust_nos'):
+        g.known_strategy_entrust_nos = []
+
+
+def append_execution_response_events(event_type, context, payload):
+    ensure_execution_response_state()
+    rows = normalize_execution_response_rows(payload)
+    event = {
+        'eventType': event_type,
+        'receivedAt': format_current_dt(context),
+        'rowCount': len(rows),
+        'rows': rows,
+    }
+
+    if event_type == 'tradeResponse':
+        buffer = g.trade_response_events
+    else:
+        buffer = g.order_response_events
+
+    buffer.append(event)
+    max_size = max(1, safe_int(getattr(g, 'max_execution_event_buffer', 200)))
+    while len(buffer) > max_size:
+        del buffer[0]
+
+    return [event]
+
+
+def normalize_execution_response_rows(payload):
+    rows = normalize_response_payload(payload)
+    return [normalize_execution_response_row(row) for row in rows]
+
+
+def normalize_response_payload(payload):
+    if payload is None:
+        return []
+    if isinstance(payload, list):
+        return payload
+    if isinstance(payload, tuple) or isinstance(payload, set):
+        return list(payload)
+    return [payload]
+
+
+def normalize_execution_response_row(row):
+    symbol = first_object_value(row, ['security', 'symbol', 'sid', 'stock', 'stock_code', 'stockCode'])
+    order_id = first_object_value(row, ['order_id', 'orderId', 'id'])
+    entrust_no = first_object_value(row, ['entrust_no', 'entrustNo'])
+
+    return {
+        'orderId': stringify_identifier(order_id),
+        'entrustNo': stringify_identifier(entrust_no),
+        'symbol': normalize_symbol(symbol) if symbol else None,
+        'amount': safe_float(first_object_value(row, ['amount', 'entrust_amount', 'business_amount', 'volume'])),
+        'filled': safe_float(first_object_value(row, ['filled', 'filled_amount', 'business_amount', 'real_amount'])),
+        'price': safe_float(first_object_value(row, ['price', 'entrust_price', 'business_price'])),
+        'status': stringify_identifier(first_object_value(row, ['status', 'entrust_status', 'order_status'])),
+        'side': stringify_identifier(first_object_value(row, ['side', 'entrust_bs', 'business_direction', 'direction'])),
+        'rawFields': serialize_object_fields(row),
+    }
+
+
+def record_submitted_order(order_result):
+    order_id = first_object_value(order_result, ['order_id', 'orderId', 'id'])
+    if order_id in [None, '']:
+        order_id = order_result
+    add_known_strategy_order_id(order_id)
+
+
+def record_strategy_order_keys(row):
+    order_id = read_object_value(row, 'orderId')
+    if order_id in [None, '']:
+        return
+
+    add_known_strategy_order_id(order_id)
+    add_known_strategy_entrust_no(read_object_value(row, 'entrustNo'))
+
+
+def add_known_strategy_order_id(order_id):
+    ensure_execution_response_state()
+    normalized_id = stringify_identifier(order_id)
+    if normalized_id and normalized_id not in g.known_strategy_order_ids:
+        g.known_strategy_order_ids.append(normalized_id)
+
+
+def add_known_strategy_entrust_no(entrust_no):
+    ensure_execution_response_state()
+    normalized_no = stringify_identifier(entrust_no)
+    if normalized_no and normalized_no not in g.known_strategy_entrust_nos:
+        g.known_strategy_entrust_nos.append(normalized_no)
+
+
+def build_account_execution_audit():
+    if not bool(getattr(g, 'enable_account_level_audit', True)):
+        return {'enabled': False}
+
+    all_orders_payload = call_optional_global('get_all_orders')
+    all_positions_payload = call_optional_global('get_all_positions')
+    all_orders = serialize_account_orders(all_orders_payload.get('value'))
+    all_positions = serialize_account_positions(all_positions_payload.get('value'))
+    unmatched_orders = [order for order in all_orders if order.get('suspectReason')]
+    cancelable_orders = [order for order in all_orders if is_cancelable_account_order(order)]
+    unmanaged_positions = [position for position in all_positions if position.get('unmanaged')]
+
+    return {
+        'enabled': True,
+        'cancelOrderExAvailable': callable(globals().get('cancel_order_ex')),
+        'allOrdersAvailable': all_orders_payload.get('available'),
+        'allOrdersError': all_orders_payload.get('error'),
+        'allOrders': all_orders,
+        'unmatchedAccountOrders': unmatched_orders,
+        'cancelableAccountOrders': cancelable_orders,
+        'allPositionsAvailable': all_positions_payload.get('available'),
+        'allPositionsError': all_positions_payload.get('error'),
+        'allPositions': all_positions,
+        'unmanagedPositions': unmanaged_positions,
+    }
+
+
+def call_optional_global(function_name, *args):
+    func = globals().get(function_name)
+    if not callable(func):
+        return {
+            'available': False,
+            'value': None,
+            'error': 'function_unavailable',
+        }
+
+    try:
+        return {
+            'available': True,
+            'value': func(*args),
+            'error': None,
+        }
+    except Exception as error:
+        return {
+            'available': False,
+            'value': None,
+            'error': str(error),
+        }
+
+
+def serialize_account_orders(orders):
+    rows = normalize_response_payload(orders)
+    result = []
+    active_symbols = normalize_symbol_list(getattr(g, 'symbols', []))
+    known_order_ids = normalize_identifier_list(getattr(g, 'known_strategy_order_ids', []))
+    known_entrust_nos = normalize_identifier_list(getattr(g, 'known_strategy_entrust_nos', []))
+
+    for row in rows:
+        order_id = stringify_identifier(first_object_value(row, ['order_id', 'orderId', 'id']))
+        entrust_no = stringify_identifier(first_object_value(row, ['entrust_no', 'entrustNo']))
+        symbol = normalize_symbol(first_object_value(row, ['security', 'symbol', 'sid', 'stock', 'stock_code', 'stockCode']))
+        matched = bool(
+            (order_id and order_id in known_order_ids)
+            or (entrust_no and entrust_no in known_entrust_nos)
+        )
+        suspect_reason = build_account_order_suspect_reason(symbol, order_id, entrust_no, matched, active_symbols)
+
+        result.append(
+            {
+                'orderId': order_id,
+                'entrustNo': entrust_no,
+                'symbol': symbol,
+                'amount': safe_float(first_object_value(row, ['amount', 'entrust_amount', 'business_amount'])),
+                'filled': safe_float(first_object_value(row, ['filled', 'filled_amount', 'business_amount', 'real_amount'])),
+                'price': safe_float(first_object_value(row, ['price', 'entrust_price', 'business_price'])),
+                'status': stringify_identifier(first_object_value(row, ['status', 'entrust_status', 'order_status'])),
+                'side': stringify_identifier(first_object_value(row, ['side', 'entrust_bs', 'business_direction', 'direction'])),
+                'matchedKnownStrategyOrder': matched,
+                'suspectReason': suspect_reason,
+                'rawFields': serialize_object_fields(row),
+            }
+        )
+
+    return result
+
+
+def build_account_order_suspect_reason(symbol, order_id, entrust_no, matched, active_symbols):
+    if symbol and active_symbols and symbol not in active_symbols:
+        return 'outside_strategy_universe'
+    if matched:
+        return None
+    if order_id or entrust_no:
+        return 'unmatched_account_order'
+    return 'missing_order_identifier'
+
+
+def is_cancelable_account_order(order):
+    status = stringify_identifier(read_object_value(order, 'status'))
+    return status in ['2', '7']
+
+
+def serialize_account_positions(positions):
+    rows = normalize_response_payload(positions)
+    result = []
+    active_symbols = normalize_symbol_list(getattr(g, 'symbols', []))
+
+    for row in rows:
+        symbol = normalize_symbol(first_object_value(row, ['security', 'symbol', 'sid', 'stock', 'stock_code', 'stockCode']))
+        current_amount = safe_float(first_object_value(row, ['current_amount', 'amount', 'hold_amount']))
+        enable_amount = safe_float(first_object_value(row, ['enable_amount', 'enableAmount']))
+        unmanaged = bool(symbol and active_symbols and symbol not in active_symbols and current_amount > 0)
+        result.append(
+            {
+                'symbol': symbol,
+                'currentAmount': current_amount,
+                'enableAmount': enable_amount,
+                'lastPrice': safe_float(first_object_value(row, ['last_price', 'lastPrice', 'asset_price'])),
+                'costPrice': safe_float(first_object_value(row, ['cost_price', 'costBasis', 'keep_cost_price'])),
+                'marketValue': safe_float(first_object_value(row, ['market_value', 'marketValue'])),
+                'unmanaged': unmanaged,
+                'rawFields': serialize_object_fields(row),
+            }
+        )
+
+    return result
+
+
+def build_execution_reconciliation(account_audit):
+    ensure_execution_response_state()
+    unmatched_orders = account_audit.get('unmatchedAccountOrders') if isinstance(account_audit, dict) else []
+    unmanaged_positions = account_audit.get('unmanagedPositions') if isinstance(account_audit, dict) else []
+
+    return {
+        'orderResponseEventCount': len(g.order_response_events),
+        'tradeResponseEventCount': len(g.trade_response_events),
+        'knownStrategyOrderIds': g.known_strategy_order_ids,
+        'knownStrategyEntrustNos': g.known_strategy_entrust_nos,
+        'unmatchedAccountOrderCount': len(unmatched_orders or []),
+        'unmanagedPositionCount': len(unmanaged_positions or []),
+    }
+
+
 def build_session_report(context):
+    ensure_execution_response_state()
+    account_audit = build_account_execution_audit()
     return {
         'kind': 'ptrade-wyckoff-trade-report',
         'generatedAt': format_current_dt(context),
@@ -2037,6 +2302,10 @@ def build_session_report(context):
         'openOrders': serialize_orders(safe_call(get_open_orders)),
         'trades': serialize_trades(safe_call(get_trades)),
         'positions': serialize_positions(safe_call(get_positions, g.symbols)),
+        'orderResponseEvents': g.order_response_events,
+        'tradeResponseEvents': g.trade_response_events,
+        'accountAudit': account_audit,
+        'executionReconciliation': build_execution_reconciliation(account_audit),
         'strategyState': g.strategy_state,
     }
 
@@ -2507,6 +2776,63 @@ def read_object_value(obj, key, default=None):
         return obj[key]
     except Exception:
         return default
+
+
+def first_object_value(obj, keys, default=None):
+    for key in keys or []:
+        value = read_object_value(obj, key)
+        if value not in [None, '']:
+            return value
+    return default
+
+
+def stringify_identifier(value):
+    if value in [None, '']:
+        return ''
+    return str(value)
+
+
+def normalize_identifier_list(values):
+    result = []
+    for value in values or []:
+        normalized = stringify_identifier(value)
+        if normalized and normalized not in result:
+            result.append(normalized)
+    return result
+
+
+def serialize_object_fields(obj):
+    if obj is None:
+        return {}
+    if isinstance(obj, dict):
+        items = obj.items()
+    else:
+        try:
+            items = vars(obj).items()
+        except Exception:
+            return {'value': json_safe_value(obj)}
+
+    result = {}
+    for key, value in items:
+        key_text = stringify_identifier(key)
+        if key_text:
+            result[key_text] = json_safe_value(value)
+    return result
+
+
+def json_safe_value(value):
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, list):
+        return [json_safe_value(item) for item in value]
+    if isinstance(value, tuple) or isinstance(value, set):
+        return [json_safe_value(item) for item in list(value)]
+    if isinstance(value, dict):
+        result = {}
+        for key, item in value.items():
+            result[stringify_identifier(key)] = json_safe_value(item)
+        return result
+    return str(value)
 
 
 def iter_object_items(obj):
