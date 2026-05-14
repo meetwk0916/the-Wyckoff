@@ -15,6 +15,11 @@ ptrade 路线按下面顺序推进：
 
 当前核心风险和暂停 / 降级条件记录在 `RISK-REGISTER.md`。如果风险登记中的高等级风险没有收敛，不应把当前版本推进到 live armed。
 
+当前下一步审查口径已拆成两层，详见 `TWO-LAYER-REVIEW.md`：
+
+1. 回测结构审查：先确认历史回测输出的候选是否符合 Wyckoff 结构语义。
+2. 模拟盘执行审查：再确认 ptrade 主推、轮询、账户级巡检、订单、成交、持仓、报告和状态记忆能否闭环。
+
 ## 结合官方 reference 的校正
 
 基于 `https://ptradeapi.com/` 当前公开文档，路线有四个需要明确写入的约束和增量：
@@ -44,7 +49,7 @@ ptrade 路线按下面顺序推进：
 
 ## Phase 1：原生回测 + 模拟盘 + 交易报告
 
-当前定位：截至 2026-05-07，已完成首轮真实参数回测，当前从“策略能否跑通”转向“模拟盘闭环、交易时段微观确认、执行恢复与对账”。
+当前定位：截至 2026-05-14，已完成首轮真实参数回测，当前从“策略能否跑通”转向“两层审查”：先审查回测结构识别是否符合 Wyckoff，再审查模拟盘执行闭环、交易时段微观确认、执行恢复与对账。
 
 - [x] 已新增 `ptrade-workspace/strategy/ptrade_wyckoff_trader.py` 策略主脚本
 - [x] 已新增 `PTRADE-TRADING.md` 操作说明
@@ -55,6 +60,7 @@ ptrade 路线按下面顺序推进：
 - [x] 用真实策略参数跑第一轮回测
 - [x] 已验证 flat-start 状态回收、pilot promotion、runner re-anchor、UTAD 收紧与趋势 runner 管理等关键非回归路径
 - [x] 已为模拟盘补 `on_order_response` / `on_trade_response` 主推路径，报告会同时保留主推事件、轮询结果和对齐摘要
+- [ ] 按 `TWO-LAYER-REVIEW.md` 建立 20 个 A 股历史结构窗口，审查回测候选是否符合 Wyckoff 结构语义
 - [ ] 用模拟盘验证订单、成交、持仓和报告闭环
 - [x] 已增加 `get_all_orders` / `get_all_positions` 账户级巡检，并在报告中标记 `cancel_order_ex` 可用性、可撤账户委托、疑似非本策略委托和非策略持仓
 - [ ] 在真实交易时段验证 L2 / 逐笔成交接口可用性
@@ -99,17 +105,18 @@ ptrade 路线按下面顺序推进：
 
 优先顺序建议如下：
 
-1. ptrade Phase 0：补券商 Python 版本、关键 API 返回格式、可用三方库和外网边界确认
-2. ptrade Phase 1：按 `PAPER-TRADE-ACCEPTANCE.md` 用模拟盘验证 `on_order_response` / `on_trade_response`、轮询结果、账户级巡检、订单、成交、持仓、报告和状态记忆是否一致
-3. ptrade Phase 1：补 `cancel_order` 超时撤单后的重报价策略；`cancel_order_ex` 当前仅做账户级可用性和可撤委托巡检，不自动撤非本策略委托
-4. ptrade Phase 1：补 `get_deliver()` / `get_fundjour()` 次日对账，并在真实交易时段验证 L2 / 逐笔成交权限
-5. ptrade Phase 2：统一 L2 / 逐笔订单流契约、录制回放与 bridge 真上游
-6. ptrade 结构层：把候选、拒绝原因、cause count 和失败结构识别沉淀为可复核证据对象
-7. ptrade 校准层：建立至少 20 个 A 股 Phase C / D 复核窗口，用样本结果决定继续、降级或停止自动化方向
+1. ptrade 结构层：按 `TWO-LAYER-REVIEW.md` 建立至少 20 个 A 股历史结构窗口，先审查回测候选是否符合 Wyckoff 结构语义
+2. ptrade 结构层：把候选、拒绝原因、cause count、数据缺口和失败结构识别沉淀为可复核证据对象
+3. ptrade Phase 0：补券商 Python 版本、关键 API 返回格式、可用三方库和外网边界确认
+4. ptrade Phase 1：按 `PAPER-TRADE-ACCEPTANCE.md` 用模拟盘验证 `on_order_response` / `on_trade_response`、轮询结果、账户级巡检、订单、成交、持仓、报告和状态记忆是否一致
+5. ptrade Phase 1：补 `cancel_order` 超时撤单后的重报价策略；`cancel_order_ex` 当前仅做账户级可用性和可撤委托巡检，不自动撤非本策略委托
+6. ptrade Phase 1：补 `get_deliver()` / `get_fundjour()` 次日对账，并在真实交易时段验证 L2 / 逐笔成交权限
+7. ptrade Phase 2：统一 L2 / 逐笔订单流契约、录制回放与 bridge 真上游
 
 原因：
 
 - 官方文档已经明确给出主推回调、账户级查单 / 撤单和重启参数，这些能力比继续堆新信号更能降低执行侧不确定性。
-- 首轮回测已经完成，当前最短板是模拟盘闭环、账户级偏差检测与执行恢复，而不是继续追加新启发式。
+- 首轮回测已经完成，但还需要先审查回测输出是否真能识别 Wyckoff 结构；否则直接跑模拟盘会把结构错误和执行错误混在一起。
+- 模拟盘闭环、账户级偏差检测与执行恢复仍是执行层最短板，但应放在结构审查之后作为第二层验收。
 - 无 L2 / 逐笔不阻塞 Phase 1 跑通，但会显著削弱 Phase 2 研究质量和 Phase 3 自动化交易可信度。
 - 虽然当前券商是国金，官方 reference 也提示其常见环境更接近 `python3.11`，但不先确认当前客户端的 Python 版本、返回格式和外网边界，后续实现仍会返工。
