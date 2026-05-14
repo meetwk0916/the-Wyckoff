@@ -145,14 +145,14 @@ Wyckoff ptrade validation => ...
 - `localResultPath` 有值：说明 JSON 文件已经尝试写到研究目录。
 - `localSqliteStatus = persisted`：说明 sqlite 已经记录本次结果，可作为 Phase 0 默认持久化路径。
 - `outbound.status = skipped`：说明你没有配置网络目标；这是 Phase 0 默认行为。
-- `outbound.status = success`：说明可继续评估 HTTP exporter / relay。
+- `outbound.status = success`：说明这个环境存在可用的 HTTP 出口；是否要继续用 relay，仍应晚于 JSON / sqlite3 主路径判断。
 - `outbound.status = error`：先看 `outbound.failureStage`，再决定是改目标地址、改 relay 部署位置，还是直接走本地落盘。
 
 ## 适用场景
 
 - `交易` 场景。
 - 股票业务优先。
-- 希望先确认 Phase 1 可行性，再继续做 exporter / relay。
+- 希望先确认 Phase 1 可行性，并把账号、L2、本地落盘这三类前置条件先收口。
 
 不建议在研究或纯回测中使用这份脚本做最终判断，因为逐笔委托、逐笔成交和快照权限判断都依赖交易环境。
 
@@ -229,9 +229,9 @@ g.validation_target = 'http://你确认可达的内网relay或中转地址/ptrad
 
 ```python
 g.validation_targets = [
-	'https://httpbin.org/post',
 	'http://你的内网relay地址:19090/ptrade',
-	'http://你的IP地址:19090/ptrade',
+	'http://broker-reachable-ip-or-host:19090/ptrade',
+	'https://httpbin.org/post',
 ]
 ```
 
@@ -255,18 +255,18 @@ g.validation_targets = [
 
 都不能再作为 ptrade 真实出站目标的默认项，只能作为客户端本地 relay 自检地址。
 
-当前这台 WSL 检测到的 IPv4 `172.19.46.143` 只建议在下面两种情况下使用：
+某台 WSL 实例的内网 IPv4 只建议在下面两种情况下使用：
 
-- 访问 relay 的进程真的与这台 WSL 处于同一网络
-- 或者你已经明确验证券商服务器对这个地址可达
+- 访问 relay 的进程真的与某台 WSL 实例处于同一网络
+- 或者你已经明确验证券商服务器对那台 WSL 实例的 IP 可达
 
-如果你决定改成 Windows 本机 relay 验证，而不再依赖 WSL 网络转发，可直接使用：
+如果你只是为了验证“Windows 客户端本机 relay 能否工作”，而不再依赖 WSL 网络转发，可直接使用：
 
 - `ptrade-workspace/windows-relay/ptrade_relay_server.py`
 - `ptrade-workspace/windows-relay/ptrade_relay_server.ps1`
 - `ptrade-workspace/windows-relay/start_ptrade_relay.bat`
 
-这条路线现在只用于验证 Windows 客户端本地 relay 能否正常工作，不再默认等同于 ptrade 真实运行环境。它的本机测试地址是：
+这条路线只用于验证 Windows 客户端本地 relay 能否正常工作，不再默认等同于 ptrade 真实运行环境。更详细的本地 relay 说明统一收口在 `ptrade-workspace/windows-relay/README.md`。它的本机测试地址是：
 
 ```python
 g.validation_target = ''
@@ -311,11 +311,13 @@ g.validation_target = ''
 g.validation_targets = [
 	'http://ptrade-relay.intra:19090/ptrade',
 	'http://broker-reachable-ip-or-host:19090/ptrade',
-	'http://172.19.46.143:19090/ptrade',
+	'http://wsl-instance-ip:19090/ptrade',
 ]
 ```
 
 脚本会按列表顺序逐个尝试，遇到第一个成功目标就停止；如果全部失败，会保留每一次尝试的详细结果。
+
+如果你当前并不打算专门验证 HTTP 出口，可以直接跳过本节后半段的 relay 示例，只保留 `g.validation_target = ''` 的默认配置即可。
 
 结果里会额外记录这些字段，方便定位失败层级：
 
@@ -337,7 +339,7 @@ g.validation_targets = [
 
 ```python
 g.symbol = '600570.XSHG'
-g.validation_target = 'https://httpbin.org/post'
+g.validation_target = ''
 ```
 
 如果你要在非交易时段先做一轮 smoke test，再额外打开这个开关：
@@ -372,7 +374,7 @@ g.smoke_test_enabled = True
 3. 启动策略。
 4. 在日志里查看 `phase = smoke` 的结果。
 5. 这一轮重点只看 `account` 是否有值。
-6. 第二轮把 `g.validation_target` 改成 `https://httpbin.org/post` 或你的 relay 地址，再启动一次。
+6. 第二轮把 `g.validation_target` 改成你确认可达的 relay 地址；如果你只是额外验证公网 HTTP，再单独改成 `https://httpbin.org/post` 这类公共测试地址。
 7. 第二轮重点只看 `outbound.status`。
 
 说明：

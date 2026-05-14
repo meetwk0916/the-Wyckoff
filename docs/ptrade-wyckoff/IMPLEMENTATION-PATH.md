@@ -13,6 +13,8 @@ ptrade 路线按下面顺序推进：
 
 如果前一层没有收口，不应直接跳到后一层。
 
+当前核心风险和暂停 / 降级条件记录在 `RISK-REGISTER.md`。如果风险登记中的高等级风险没有收敛，不应把当前版本推进到 live armed。
+
 ## 结合官方 reference 的校正
 
 基于 `https://ptradeapi.com/` 当前公开文档，路线有四个需要明确写入的约束和增量：
@@ -52,9 +54,9 @@ ptrade 路线按下面顺序推进：
 - [x] 已接入静态标的池、长周期量价、RS / Beta、L2 订单簿失衡、逐笔 CVD 和 pickle 状态记忆
 - [x] 用真实策略参数跑第一轮回测
 - [x] 已验证 flat-start 状态回收、pilot promotion、runner re-anchor、UTAD 收紧与趋势 runner 管理等关键非回归路径
-- [ ] 为模拟盘补 `on_order_response` / `on_trade_response` 主推路径，并与轮询结果对齐
+- [x] 已为模拟盘补 `on_order_response` / `on_trade_response` 主推路径，报告会同时保留主推事件、轮询结果和对齐摘要
 - [ ] 用模拟盘验证订单、成交、持仓和报告闭环
-- [ ] 增加 `get_all_orders` / `cancel_order_ex` / `get_all_positions` 账户级巡检，识别人工干预和非本策略订单
+- [x] 已增加 `get_all_orders` / `get_all_positions` 账户级巡检，并在报告中标记 `cancel_order_ex` 可用性、可撤账户委托、疑似非本策略委托和非策略持仓
 - [ ] 在真实交易时段验证 L2 / 逐笔成交接口可用性
 - [ ] 增加基于 `cancel_order` 的超时撤单与重试策略
 - [ ] 增加基于 `get_deliver()` / `get_fundjour()` 的次日对账
@@ -98,11 +100,12 @@ ptrade 路线按下面顺序推进：
 优先顺序建议如下：
 
 1. ptrade Phase 0：补券商 Python 版本、关键 API 返回格式、可用三方库和外网边界确认
-2. ptrade Phase 1：补 `on_order_response` / `on_trade_response` 与模拟盘订单、成交、持仓、报告闭环对齐
-3. ptrade Phase 1：补 `get_all_orders` / `cancel_order_ex` / `get_all_positions` 账户级巡检，以及 `cancel_order` 超时撤单 / 重报价
+2. ptrade Phase 1：按 `PAPER-TRADE-ACCEPTANCE.md` 用模拟盘验证 `on_order_response` / `on_trade_response`、轮询结果、账户级巡检、订单、成交、持仓、报告和状态记忆是否一致
+3. ptrade Phase 1：补 `cancel_order` 超时撤单后的重报价策略；`cancel_order_ex` 当前仅做账户级可用性和可撤委托巡检，不自动撤非本策略委托
 4. ptrade Phase 1：补 `get_deliver()` / `get_fundjour()` 次日对账，并在真实交易时段验证 L2 / 逐笔成交权限
 5. ptrade Phase 2：统一 L2 / 逐笔订单流契约、录制回放与 bridge 真上游
 6. ptrade 结构层：把候选、拒绝原因、cause count 和失败结构识别沉淀为可复核证据对象
+7. ptrade 校准层：建立至少 20 个 A 股 Phase C / D 复核窗口，用样本结果决定继续、降级或停止自动化方向
 
 原因：
 

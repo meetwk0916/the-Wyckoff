@@ -70,9 +70,7 @@ ptrade 当前首要功能清单：
 - ptrade 原生策略 `ptrade-workspace/strategy/ptrade_wyckoff_trader.py`
 - L2 订单簿失衡、逐笔 CVD、长周期量价、RS / Beta、静态标的池、状态记忆的策略侧输入
 - 基于 `get_research_path()` 的 JSON / sqlite3 Phase 0 预检查与默认落盘基线
-- 本地 `ptrade bridge` 服务骨架
-- L2 订单流样例接口与录制能力
-- 前端中的 bridge 健康状态和 L2 样例联调面板
+- 前端侧保留一套本地 bridge / relay 联调骨架，但它只用于 UI 契约调试，不代表 ptrade 当前默认交换路径
 
 当前已具备的 MiniQMT 初始化能力：
 
@@ -144,76 +142,32 @@ http://localhost:5173
 npm run build
 ```
 
-### 4. 启动 ptrade Phase 1 relay
-
-说明：这条 relay 只用于本地联调或调试，不是 ptrade 当前默认的数据交换主路径。当前默认基线请先看 `docs/ptrade-wyckoff/NO-HTTP-DATA-EXCHANGE.md`。
-
-如果你要先在本机起一个最小 relay，接收 ptrade 运行时的 `POST` 推送，并向当前 bridge 暴露统一 `GET` 接口，先启动：
-
-```bash
-npm run ptrade:relay
-```
-
-默认监听：
-
-```bash
-http://127.0.0.1:19090
-```
-
-如果你只是想在当前机器上验证 relay 自己是否能启动并返回接口，可先看下面这个地址：
-
-```bash
-http://127.0.0.1:19090/ptrade
-```
-
-但当前已确认：ptrade 实际运行在券商服务器上，Windows 这边只是客户端。因此这个 `127.0.0.1` 只能用于本机自检，不能默认作为 ptrade 策略里的真实出站地址。
-
-当前这台开发机在 WSL 内检测到的本机 IPv4 是：
-
-```bash
-http://172.19.46.143:19090
-```
-
-对应接口：
-
-- `POST /ptrade`
-- `GET /health`
-- `GET /l2-order-flow?symbol=600570.XSHG`
-
-说明：
-
-- 本机客户端自检：可用 `http://127.0.0.1:19090/ptrade`
-- ptrade 真正出站目标：必须改成券商服务器实际可达的内网 IP、域名或中转地址
-- 其他机器访问当前 relay：再考虑 `http://172.19.46.143:19090/ptrade` 或你自己确认可达的内网 IP
-- WSL 内网 IP 可能在重启后变化
-
-### 5. 启动 ptrade Phase 1 bridge
+### 4. 启动 ptrade Phase 1 bridge
 
 ```bash
 npm run ptrade:bridge
 ```
 
-默认会以 `mock` 模式启动本地 bridge，用于联调 L2 数据契约与前端面板。
+默认会以 `mock` 模式启动本地 bridge，用于联调 L2 数据契约与前端面板。它不代表 ptrade 当前主数据交换路径；当前主路径仍是研究目录 JSON / sqlite3。
 
-如果你已经有可访问的 ptrade 上游 bridge，可以这样切换到真实连接模式：
-
-```bash
-PTRADE_MODE=upstream PTRADE_UPSTREAM_URL=http://127.0.0.1:19090 npm run ptrade:bridge
-```
-
-如果 bridge 也跑在当前 WSL 里，连接这个本机 relay 时优先这样配：
+如果你已经有一个明确可达的上游 HTTP bridge，可以这样切换到连接模式：
 
 ```bash
 PTRADE_MODE=upstream PTRADE_UPSTREAM_URL=http://127.0.0.1:19090 npm run ptrade:bridge
 ```
 
-如果你要显式走当前检测到的 WSL IPv4，也可以这样配：
+如果你只是需要本地 UI 契约调试，再看下面这些可选工具：
+
+- `npm run ptrade:relay`
+- `ptrade-workspace/windows-relay/README.md`
+
+如果你要显式走某个内网 IP，也可以这样配：
 
 ```bash
-PTRADE_MODE=upstream PTRADE_UPSTREAM_URL=http://172.19.46.143:19090 npm run ptrade:bridge
+PTRADE_MODE=upstream PTRADE_UPSTREAM_URL=http://<broker-reachable-ip-or-host>:19090 npm run ptrade:bridge
 ```
 
-说明：当前这台 WSL 环境里没有检测到现成的 ptrade 安装或连接配置，所以仓库内只能先做到本地 bridge 联调，真实连接仍依赖外部上游服务。
+说明：当前仓库内还没有把 bridge 改成直接读取研究目录 JSON / sqlite3；在这个 reader 路径补齐前，bridge 仍只是一层前端联调工具。
 
 如果你要先在官方 PTrade 环境里验证账号绑定、研究目录 JSON / sqlite3 落盘，以及可选的出站 HTTP 探测，可直接使用：
 
@@ -227,6 +181,10 @@ PTRADE_MODE=upstream PTRADE_UPSTREAM_URL=http://172.19.46.143:19090 npm run ptra
 - `npm run build`：构建生产产物
 - `npm run lint`：运行 ESLint
 - `npm run preview`：本地预览构建结果
+<<<<<<< ptrade-workspace
+- `npm run ptrade:bridge`：启动 ptrade Phase 1 本地 bridge，仅用于当前前端联调
+- `npm run ptrade:relay`：启动最小 ptrade relay，仅用于本地 UI 契约调试
+=======
 - `npm run ptrade:relay`：启动最小 ptrade relay，接收 `POST /ptrade` 并暴露 `GET /health`、`GET /l2-order-flow`
 - `npm run ptrade:bridge`：启动 ptrade Phase 1 本地 bridge
 - `npm run crypto:fixtures`：运行固定 BTC replay fixture 检查
@@ -237,3 +195,4 @@ PTRADE_MODE=upstream PTRADE_UPSTREAM_URL=http://172.19.46.143:19090 npm run ptra
 - `npm run crypto:phase-c:check`：按 evidence → classify → review → verify 顺序运行完整 Phase C 守门链路
 - `npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_24h_heartbeat`：监控心跳版 Bybit liquidation 长跑采集
 - `npm run crypto:daily-check`：每日汇总 Bybit 7d 长跑 screen、最新心跳、BTC long / short liquidation 和 Phase C candidate 状态
+>>>>>>> main
