@@ -1,5 +1,236 @@
 # BTC 数据源验证记录
 
+## 2026-05-14 长跑监控与 Phase C 判据增强
+
+新增内容：
+
+- `crypto:capture:status` 改为精确匹配 screen session 名称，避免 `wyckoff_bybit_liq_capture_24h` 被 `wyckoff_bybit_liq_capture_24h_heartbeat` 前缀误判为 running。
+- 新增 `npm run crypto:daily-check`，一次性刷新 capture status 和 Phase C candidate scan，输出 screen、最新 heartbeat、BTC long / short liquidation、candidate 和 parse error 摘要，并写入 `crypto-workspace/reports/daily-capture-check-last.json`；默认监控 7d screen `wyckoff_bybit_liq_capture_7d_heartbeat`。
+- `structureContext` 新增结构 verdict：汇总 spot / perp 支撑跌破、收回、收回距离和 `phaseCStructureSupport`。
+- `cvdContext` 新增 CVD verdict：输出 `demandConfirmation`、`distributionRisk` 和判据理由；当前 demand / supply 仍使用 5% delta ratio 阈值。
+
+验证结果：
+
+```bash
+npm run crypto:daily-check
+npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_24h
+npm run crypto:phase-c:check
+```
+
+- `crypto:daily-check`：screen `wyckoff_bybit_liq_capture_24h_heartbeat` 为 running，最新 provider heartbeat 为 `2026-05-14T13:39:08.612Z`，BTC long liquidation events 为 0，BTC short liquidation events 为 1，long liquidation candidates 为 0，parse errors 为 0。
+- 旧 screen 名 `wyckoff_bybit_liq_capture_24h` 现在返回 `Capture screen: not_found`，精确匹配修复生效。
+- Phase C verification：passed。
+- 当前固定窗口仍为 0 个 `spring_candidate`、1 个 `short_squeeze_only`、1 个 `insufficient_evidence`，review agreement 仍为 2 / 2。
+
+结论：
+
+- 长跑监控现在有单命令日报入口，旧 / 新 screen 名状态不会再混淆。
+- 24h 心跳 session 接近自然结束时，应改用 `wyckoff_bybit_liq_capture_7d_heartbeat` 作为每日检查目标。
+- Phase C 结构与 CVD 判据从原始上下文升级为显式 verdict，但没有放宽 Spring 判定：未来 `spring_candidate` 仍必须满足 long liquidation、结构支持、CVD 支持、盘口恢复和 OI 去杠杆确认。
+- 当前仍未新增 BTC long liquidation 正样本，继续保留 Bybit 心跳版长跑采集。
+
+## 2026-05-13 Bybit 24h liquidation capture 重启
+
+### Phase C evidence / classification 增强
+
+新增内容：
+
+- `derivativesContext.fundingContext`：把 Funding 从“是否有样本”升级为拥挤度上下文，输出 `crowded_long`、`crowded_short`、`neutral` 和 `extremeCrowding`。它不是 Spring 硬条件，也不会替代 liquidation / structure / CVD / OI。
+- `orderBookRecovery.*.buckets`：围绕 first liquidation 或窗口中点输出 pre-anchor、post-1m 和 post-3m 分桶，记录 bid depth、ask depth、imbalance 的均值与变化。
+- `phase-c:classify` 会把 funding context 和盘口分桶带入 `context`；盘口 3 分钟 ask depth retreat / imbalance improvement 只影响解释和信心，不绕过核心 Spring 条件。
+- `phase-c:review` 的规则评分新增 funding 组件，并把 post-3m ask depth retreat / imbalance improvement 纳入 order book 评分，用于人工复核后的阈值校准。
+
+验证结果：
+
+```bash
+npm run crypto:phase-c:check
+npm run crypto:phase-c:evidence
+npm run crypto:phase-c:classify
+npm run crypto:phase-c:review
+npm run crypto:phase-c:verify
+```
+
+- `okx-btc-liquidation-2026-05-09T12-14Z`：仍为 `short_squeeze_only`。
+- `okx-btc-no-liquidation-2026-05-09T12-33Z`：仍为 `insufficient_evidence`。
+- Review agreement：2 / 2。
+- Phase C verification：passed。
+- 当前 short liquidation 对照窗口 funding 为 `neutral`；perp post-3m bucket 出现 ask depth retreat 和 imbalance improvement，但不会被误判为 Spring，因为清算方向仍是 short。
+
+结论：
+
+- Funding 和盘口时间分桶已进入证据对象，但当前不会放宽 `spring_candidate` 判定。
+- 下一步仍是扩充 `long liquidation + 价格收回 + 盘口恢复` 正样本，再校准 funding / CVD / order book 阈值。
+
+### Bybit 24h liquidation capture 重启
+
+当前本地 raw 数据扫描结果：
+
+```bash
+npm run crypto:phase-c:candidates
+```
+
+结果：
+
+- BTC events：40,505
+- BTC liquidation events：1
+- long liquidation candidates：0
+- short liquidation candidates：1
+- full sensor ready candidates：1
+
+Bybit 5 秒 smoke test：
+
+```bash
+npm run crypto:capture -- --provider=bybit --duration-sec=5 --event-type=liquidation
+```
+
+结果：
+
+- 普通沙箱执行会被本机代理连接限制拦截：`connect EPERM 127.0.0.1:7890`。
+- 提权网络执行后 Bybit public WebSocket 可连接。
+- `subscriptionAck`：`true`
+- `status`：`connected_no_sample`
+- `receivedMessages`：1
+- `writtenEvents`：0
+
+24h 长跑采集已重新启动：
+
+```bash
+screen -dmS wyckoff_bybit_liq_capture_24h npm run crypto:capture -- --provider=bybit --duration-sec=86400 --event-type=liquidation
+npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_24h
+screen -dmS wyckoff_bybit_liq_capture_24h_heartbeat npm run crypto:capture -- --provider=bybit --duration-sec=86400 --event-type=liquidation
+npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_24h_heartbeat
+```
+
+启动后状态：
+
+- screen：`15996.wyckoff_bybit_liq_capture_24h` detached / running。
+- screen：`18014.wyckoff_bybit_liq_capture_24h_heartbeat` detached / running。
+- status：`Capture screen: running`。
+- raw 扫描：Files 163，Events 40,521，BTC events 40,507，BTC liquidation events 1，BTC long liquidation events 0，BTC short liquidation events 1，Liquidation events 14，Provider status events 17，parse errors 0。
+- 最新 provider status 文件：`crypto-workspace/data/raw/bybit/2026-05-13/linear_all_liquidation-2026-05-13T14-03-15-597Z.jsonl`，来自新心跳版 24h Bybit capture；已写入 `capture_connected` 和 `subscription_ack`，后续应每 5 分钟写入 `capture_heartbeat`。
+- 旧的 `wyckoff_bybit_liq_capture_24h` 仍在运行，但它启动于心跳落盘逻辑之前；后续优先监控 `wyckoff_bybit_liq_capture_24h_heartbeat`。
+- 新增 Bybit 输出文件：`crypto-workspace/data/raw/bybit/2026-05-13/linear_all_liquidation-2026-05-13T13-16-56-705Z.jsonl`。
+- 新增心跳版 Bybit 输出文件：`crypto-workspace/data/raw/bybit/2026-05-13/linear_all_liquidation-2026-05-13T14-03-15-597Z.jsonl`。
+
+结论：
+
+- 2026-05-12 的 Bybit DNS / 沙箱网络失败不是当前最终状态；在可用代理 / 提权网络下 Bybit liquidation stream 已恢复可连接。
+- 当前仍未新增 BTC long liquidation 正样本；下一步应持续监控 24h 到 72h Bybit 采集，再用 candidate scan 查找 `long liquidation + 价格收回 + 盘口恢复` 窗口。
+- 固定复核命令：`npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_24h_heartbeat` 和 `npm run crypto:phase-c:candidates`。前者现在会直接输出 BTC long / short liquidation 方向计数、provider status 计数和最新来源文件。
+
+## 2026-05-11 低门槛历史数据源复查
+
+当前本地 raw 数据扫描结果：
+
+```bash
+npm run crypto:phase-c:candidates
+```
+
+结果：
+
+- BTC events：38,501
+- BTC liquidation events：1
+- long liquidation candidates：0
+- short liquidation candidates：1
+- full sensor ready candidates：1
+
+结论：
+
+- 本地自建 capture 当前只有一个 short liquidation 对照窗口，仍缺 Phase C 正样本。
+- 下一步不应等待短窗口实时采集自然碰到正样本，而应验证低门槛历史源。
+
+低门槛历史源复查结论：
+
+- OKX Historical Data：可作为 OKX BTC trade / L2 order book / funding 历史窗口入口，但当前不走手工下载 / 手工导入路线。
+- CoinGlass：pair liquidation history 适合作为分钟级 long / short 清算聚合上下文，但截至 2026-05-12 API 付费，当前先跳过真实下载。
+- CryptoHFTData：值得小窗口验证，但作为新数据源必须先审计字段、许可、覆盖起点和缺口。
+- Tardis.dev / Kaiko：仍是更完整的 research primary 候选，但不作为“先免费的跑跑”的第一选择。
+
+新增免费历史源探测入口：
+
+```bash
+npm run crypto:history:free-sources
+npm run crypto:history:free-sources -- --provider=binance_vision --date=2026-05-09 --live
+```
+
+Binance Vision live HEAD 结果：
+
+- `spot_agg_trades_daily`：available
+- `spot_klines_daily`：available
+- `um_futures_agg_trades_daily`：available
+- `um_futures_klines_daily`：available
+- `um_futures_liquidation_snapshot_daily`：unavailable / 404
+
+结论：
+
+- Binance Vision 免费源可以补 BTC spot / perp trade 和 K 线历史窗口。
+- 当前日期的 USDT-M liquidationSnapshot 不可用，不能解决 Phase C 正样本的清算证据缺口。
+- 下一步仍需要清算正样本；当前不推进 OKX 手工文件验证，CoinGlass 真实 API 因付费先跳过。
+
+新增 Binance Vision aggTrades / kline 导入入口：
+
+```bash
+npm run crypto:history:binance-vision -- --date=2026-05-09
+npm run crypto:history:binance-vision -- --date=2026-05-09 --limit-rows=1000 --download
+```
+
+导入结果：
+
+- `spot_agg_trades_daily`：写入 1,000 条 normalized `trade` 事件。
+- `um_futures_agg_trades_daily`：写入 1,000 条 normalized `trade` 事件。
+- 输出目录：`crypto-workspace/data/raw/binance_vision/2026-05-09/`，已被 git ignore。
+- replay 验证：`provider=binance_vision`、`event-type=trade` 可匹配 2,000 条事件。
+- candidate scan 验证：BTC events 从 38,501 增加到 40,501；BTC liquidation events 仍为 1，long liquidation candidates 仍为 0。
+
+2026-05-12 补充：
+
+- 事件契约新增 normalized `kline` 类型。
+- Binance Vision 导入器 dry-run 已扩展到 `spot_klines_daily` 和 `um_futures_klines_daily`。
+- 免费历史源 manifest 中，上述四个 Binance Vision trade / kline 资源标记为 `implemented`；`liquidationSnapshot` 仍未实现为可靠输入。
+
+结论：
+
+- Binance Vision 导入链路可用，能补 spot / perp CVD 所需 trade 历史和 1m K 线价格上下文。
+- 它不补 liquidation，不能单独构成 Phase C 正样本。
+
+2026-05-12 爆仓数据 research 后补充：
+
+- 已把爆仓证据分为 `raw_exchange_liquidation`、`aggregate_liquidation_context` 和 `liquidation_level_heatmap` 三层。
+- Phase C evidence 新增 `derivativesContext.openInterestShock`，用 OI 明显下降交叉验证清算去杠杆，因为公开 liquidation feed 可能低报。
+- Phase C classification 已把 OI 去杠杆确认纳入未来 `spring_candidate` 硬条件。
+- 新增 CoinGlass pair liquidation history 导入入口，默认 dry-run；只有提供 `COINGLASS_API_KEY` 并显式 `--download` 才拉取 API。
+- 用户确认当前不打算手工导入数据；CoinGlass API 当前付费，因此真实下载暂跳过。
+
+```bash
+npm run crypto:history:coinglass -- --date=2026-05-09
+COINGLASS_API_KEY=<key> npm run crypto:history:coinglass -- --date=2026-05-09 --download
+```
+
+2026-05-12 Bybit 长跑复核：
+
+```bash
+npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_24h
+npm run crypto:capture -- --provider=bybit --duration-sec=5 --event-type=liquidation
+```
+
+结果：
+
+- `screen` 当前为 `not_found`，没有 24h Bybit capture 在后台运行。
+- 前台 5 秒 Bybit capture 退出，错误为 `getaddrinfo ENOTFOUND stream.bybit.com`。
+- 提权网络重试请求超时，未能验证非沙箱网络是否可连。
+
+结论：
+
+- 当前本机沙箱网络无法启动 Bybit 长跑采集。
+- 下一步在代理 / 外网权限可用后，先复跑 5 秒 smoke，再用 `screen -dmS wyckoff_bybit_liq_capture_24h npm run crypto:capture -- --provider=bybit --duration-sec=86400 --event-type=liquidation` 启动 24h 采集。由于不走 OKX 手工导入且 CoinGlass 付费先跳过，Bybit 免费实时采集是当前最现实的清算正样本来源。
+
+下一次验证目标：
+
+1. 解决本机 Bybit WebSocket DNS / 代理连通性。
+2. 启动并监控 24h 到 72h Bybit `allLiquidation.BTCUSDT` 采集。
+3. 用 Binance Vision 继续补 trade / kline 历史上下文。
+4. 如果仍长期没有 long liquidation 样本，再评估可程序化免费源或付费研究主源；不要走手工下载数据路线。
+
 ## 2026-05-07 Phase 0 初始探测
 
 ### 本地 dry-run
@@ -67,7 +298,7 @@ npm run crypto:probe -- --live --provider=okx --report=crypto-workspace/reports/
 当前最短路径不是继续写交易逻辑，而是先解决数据入口运行位置：
 
 1. 在真实部署网络或云主机上复跑 Binance / OKX live probe。
-2. 并行验证 Tardis.dev / CoinGlass / Kaiko 是否能提供历史数据下载或 API 试用。
+2. 如免费实时采集继续受阻，再评估 Tardis.dev / CoinGlass / Kaiko 的历史数据下载、API 试用和预算。
 3. 如果本机网络持续不可达，把 live collector 放到可访问交易所 API 的 relay / VPS 上，本地只消费 normalized event 文件或 HTTP relay。
 
 ## 下一次验证要回答的问题
@@ -222,7 +453,7 @@ npm run crypto:capture:status
 
 - 先跑 60 秒 smoke test。
 - 再跑 24h 到 72h liquidation capture。
-- 如果 24h 仍无样本，等待高波动窗口，或验证 CoinGlass / Velo / Kaiko 的历史清算数据。
+- 如果 24h 仍无样本，等待高波动窗口；付费聚合源只在免费采集确认成为瓶颈后再评估。
 
 ### 10 秒 smoke test
 
@@ -276,3 +507,81 @@ npm run crypto:capture -- --duration-sec=10 --event-type=liquidation
 - 已捕获 OKX 全 swap liquidation 样本。
 - 当前尚未捕获 BTC 专属 liquidation 样本。
 - 后续验证使用 `npm run crypto:capture:status` 作为固定入口。
+
+## 2026-05-10 Replay fixture 与 Phase C 分类验证
+
+### 新增固定入口
+
+```bash
+npm run crypto:fixtures
+npm run crypto:phase-c:evidence
+npm run crypto:phase-c:classify
+```
+
+### 当前 fixture
+
+- `okx-btc-liquidation-2026-05-09T12-14Z`：包含 trade、book_delta、OI、Funding 和 1 条 BTC liquidation。
+- `okx-btc-no-liquidation-2026-05-09T12-33Z`：包含 trade、book_delta、OI 和 Funding，但无 BTC liquidation。
+
+### 验证结果
+
+- `npm run crypto:fixtures`：2 passed / 0 failed。
+- `npm run crypto:phase-c:evidence`：2 个窗口中 1 个满足 Phase C 输入，1 个满足 full sensor 输入。
+- `npm run crypto:phase-c:classify`：0 个 `spring_candidate`，0 个 `breakdown_risk`，1 个 `short_squeeze_only`，1 个 `insufficient_evidence`。
+
+### 结论
+
+- 当前唯一真实 BTC 清算窗口是短仓强平主导，不能当成 Spring。
+- 分类器已能把空头挤压挡在 `short_squeeze_only`，避免误判为 `spring_candidate`。
+- 下一步需要扩充历史窗口，优先寻找多头强平主导、价格收回、盘口恢复的 Phase C 候选样本。
+
+## 2026-05-11 Bybit liquidation 补充源
+
+### 新增入口
+
+```bash
+npm run crypto:ws-probe -- --provider=bybit
+npm run crypto:capture -- --provider=bybit --duration-sec=86400 --event-type=liquidation
+npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_24h
+```
+
+### 映射规则
+
+- Bybit public linear WebSocket topic：`allLiquidation.BTCUSDT`。
+- `S=Buy` 表示多头被强平，映射为 `posSide=long`、`side=sell`。
+- `S=Sell` 表示空头被强平，映射为 `posSide=short`、`side=buy`。
+
+### live probe 结果
+
+```bash
+npm run crypto:ws-probe -- --live --provider=bybit
+```
+
+- transport：`proxy+wss`
+- subscriptionAck：`true`
+- status：`connected_no_sample`
+- latencyMs：约 12,001 ms
+
+12 秒窗口内未出现 liquidation 样本符合预期；关键验证点是公共频道可连接且订阅确认成功。
+
+### 24h capture 启动状态
+
+命令：
+
+```bash
+screen -dmS wyckoff_bybit_liq_capture_24h npm run crypto:capture -- --provider=bybit --duration-sec=86400 --event-type=liquidation
+npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_24h
+```
+
+结果：
+
+- screen：`20821.wyckoff_bybit_liq_capture_24h` detached / running。
+- status：`Capture screen: running`。
+- 当前 raw 扫描：BTC events 40,501，BTC liquidation events 1，parse errors 0。
+- 启动后短时间内尚未新增 Bybit BTC liquidation 样本；这符合清算流稀疏特性。
+- 这是 2026-05-11 的点时状态；2026-05-12 复核时该 screen 已变为 `not_found`，以后以本文顶部 2026-05-12 复核结论为准。
+
+### 结论
+
+- Bybit 当前作为免费实时 liquidation-only 补充源，用于增加后续长跑采集命中 BTC long liquidation 正样本的概率。
+- 它不替代 Binance / OKX 的 trade、book、OI、Funding 上下文，也不改变“先复核样本、再 paper trade”的边界。

@@ -1,0 +1,34 @@
+{
+  "fixtures": [
+    {
+      "id": "okx-btc-liquidation-2026-05-09T12-14Z",
+      "description": "First BTC liquidation replay window with trade, book_delta, OI, and funding context.",
+      "provider": "all",
+      "symbol": "BTC",
+      "eventType": "all",
+      "start": "2026-05-09T12:09:44Z",
+      "end": "2026-05-09T12:19:44Z",
+      "limit": 200,
+      "expected": {
+        "minimumPhaseCReady": true,
+        "fullSensorReady": true,
+        "requiredEventTypes": ["trade", "book_delta", "open_interest", "funding_rate", "liquidation"]
+      }
+    },
+    {
+      "id": "okx-btc-no-liquidation-2026-05-09T12-33Z",
+      "description": "One-hour OKX trade and book_delta control window with OI/Funding but no BTC liquidation.",
+      "provider": "okx",
+      "symbol": "BTC",
+      "eventType": "all",
+      "start": "2026-05-09T12:33:22Z",
+      "end": "2026-05-09T13:35:05Z",
+      "limit": 200,
+      "expected": {
+        "minimumPhaseCReady": false,
+        "fullSensorReady": false,
+        "requiredEventTypes": ["trade", "book_delta", "open_interest", "funding_rate"]
+      }
+    }
+  ]
+}

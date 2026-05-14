@@ -15,11 +15,21 @@ server/recordings/
 ptrade-workspace/state/*.pkl
 ptrade-workspace/state/*.json
 !ptrade-workspace/state/README.md
+miniqmt-workspace/state/local/
+miniqmt-workspace/state/reports/
+miniqmt-workspace/state/replay-fixtures/
+miniqmt-workspace/state/*.json
+miniqmt-workspace/state/*.jsonl
+miniqmt-workspace/state/*.sqlite
+miniqmt-workspace/state/*.db
+!miniqmt-workspace/state/README.md
 crypto-workspace/data/**/*.json
 crypto-workspace/data/**/*.jsonl
 crypto-workspace/data/**/*.csv
 crypto-workspace/data/**/*.parquet
+crypto-workspace/data/**/*.zip
 crypto-workspace/reports/*.json
+crypto-workspace/reports/**/*.json
 crypto-workspace/run/*.pid
 
 # Python

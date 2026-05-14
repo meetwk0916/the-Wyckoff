@@ -35,7 +35,7 @@ async function main() {
     generatedAt: new Date().toISOString(),
     mode: options.live ? 'live' : 'dry_run',
     marketId: market.id,
-    requiredEventTypes: ['book_delta', 'liquidation'],
+    requiredEventTypes: ['trade', 'book_delta', 'liquidation'],
     providers: providerResults,
     decisionNotes: buildDecisionNotes(providerResults),
   }
@@ -111,7 +111,7 @@ function printHelp() {
 
 Options:
   --live                 Connect to public WebSocket endpoints. Default is dry-run.
-  --provider=<name>      Provider to probe: all, binance, okx. Default: all.
+  --provider=<name>      Provider to probe: all, binance, okx, bybit. Default: all.
   --market=<id>          Market id from config/markets.json. Default: btc-usdt.
   --config=<path>        Market config path.
   --report=<path>        Output report path.

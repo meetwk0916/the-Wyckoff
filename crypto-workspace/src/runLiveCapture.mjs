@@ -11,6 +11,7 @@ const defaultDataDir = resolve(workspaceDir, 'data/raw')
 const defaultReportPath = resolve(workspaceDir, 'reports/live-capture-last.json')
 const DEFAULT_DURATION_MS = 60_000
 const FRAME_TIMEOUT_MS = 10_000
+const STATUS_HEARTBEAT_MS = 5 * 60_000
 
 async function main() {
   const options = parseArgs(process.argv.slice(2))
@@ -56,19 +57,42 @@ async function captureStream(stream, options, startedAt) {
   const writer = createWriteStream(outputPath, { flags: 'a' })
   let socket
   let receivedMessages = 0
+  let filteredMessages = 0
   let writtenEvents = 0
+  let statusEvents = 0
   let subscriptionAck = false
   let lastEventAt = ''
+  let lastStatusAt = ''
   let error = ''
+  let nextKeepAliveAt = stream.keepAlive ? Date.now() + stream.keepAlive.intervalMs : 0
+  let nextStatusHeartbeatAt = Date.now() + STATUS_HEARTBEAT_MS
+
+  const writeStatusEvent = (status, message) => {
+    const event = buildStatusEvent(stream, status, message)
+    writer.write(`${JSON.stringify(event)}\n`)
+    statusEvents += 1
+    lastStatusAt = event.receivedAt
+  }
 
   try {
     socket = await openWebSocket(stream.url, { timeoutMs: FRAME_TIMEOUT_MS })
+    writeStatusEvent('capture_connected', 'WebSocket connected.')
 
     if (stream.subscribe) {
       socket.write(encodeFrame(JSON.stringify(stream.subscribe)))
     }
 
     while (Date.now() - streamStartedAt < options.durationMs) {
+      if (stream.keepAlive && Date.now() >= nextKeepAliveAt) {
+        socket.write(encodeFrame(JSON.stringify(stream.keepAlive.payload)))
+        nextKeepAliveAt = Date.now() + stream.keepAlive.intervalMs
+      }
+
+      if (Date.now() >= nextStatusHeartbeatAt) {
+        writeStatusEvent('capture_heartbeat', `receivedMessages=${receivedMessages}; writtenEvents=${writtenEvents}`)
+        nextStatusHeartbeatAt = Date.now() + STATUS_HEARTBEAT_MS
+      }
+
       const remainingMs = options.durationMs - (Date.now() - streamStartedAt)
       const frame = await readFrame(socket, Math.min(FRAME_TIMEOUT_MS, remainingMs))
 
@@ -90,13 +114,20 @@ async function captureStream(stream, options, startedAt) {
 
       if (isSubscriptionAck(payload)) {
         subscriptionAck = true
+        writeStatusEvent('subscription_ack', 'Provider acknowledged the subscription.')
 
         if (stream.ignoreSubscriptionAck) {
           continue
         }
       }
 
-      const event = buildCaptureEvent(stream, payload)
+      const filteredPayload = filterPayloadForStream(stream, payload)
+      if (!filteredPayload) {
+        filteredMessages += 1
+        continue
+      }
+
+      const event = buildCaptureEvent(stream, filteredPayload)
       writer.write(`${JSON.stringify(event)}\n`)
       writtenEvents += 1
       lastEventAt = event.receivedAt
@@ -121,12 +152,78 @@ async function captureStream(stream, options, startedAt) {
     outputPath,
     durationMs: Date.now() - streamStartedAt,
     receivedMessages,
+    filteredMessages,
     writtenEvents,
+    statusEvents,
     subscriptionAck,
     lastEventAt,
+    lastStatusAt,
     status: error ? 'error' : writtenEvents > 0 ? 'captured' : 'connected_no_sample',
     error,
   }
+}
+
+function filterPayloadForStream(stream, payload) {
+  if (stream.eventType !== 'liquidation') {
+    return payload
+  }
+
+  const targetSymbols = buildTargetSymbols(stream)
+  if (targetSymbols.length === 0) {
+    return payload
+  }
+
+  if (Array.isArray(payload?.data)) {
+    const filteredData = payload.data.filter((item) => itemMatchesTargetSymbols(item, targetSymbols))
+    if (filteredData.length === 0) {
+      return null
+    }
+    return { ...payload, data: filteredData }
+  }
+
+  if (itemMatchesTargetSymbols(payload, targetSymbols)) {
+    return payload
+  }
+
+  return null
+}
+
+function buildTargetSymbols(stream) {
+  const targets = new Set()
+  addTargetSymbol(targets, stream.symbol)
+  addTargetSymbol(targets, stream.providerSymbol)
+
+  if (typeof stream.providerSymbol === 'string' && stream.providerSymbol.endsWith('-SWAP')) {
+    addTargetSymbol(targets, stream.providerSymbol.replace('-SWAP', ''))
+  }
+
+  return Array.from(targets)
+}
+
+function addTargetSymbol(targets, symbol) {
+  if (typeof symbol === 'string' && symbol) {
+    targets.add(normalizeSymbolText(symbol))
+  }
+}
+
+function itemMatchesTargetSymbols(item, targetSymbols) {
+  const symbols = [
+    item?.s,
+    item?.o?.s,
+    item?.symbol,
+    item?.instId,
+    item?.instFamily,
+    item?.uly,
+  ].map(normalizeSymbolText).filter(Boolean)
+
+  return symbols.some((symbol) => targetSymbols.includes(symbol))
+}
+
+function normalizeSymbolText(symbol) {
+  if (typeof symbol !== 'string') {
+    return ''
+  }
+  return symbol.toUpperCase().replace(/[^A-Z0-9]/g, '')
 }
 
 function buildCaptureEvent(stream, payload) {
@@ -246,7 +343,7 @@ function inferInstrumentType(stream) {
 }
 
 function inferEventTime(payload) {
-  const timestamp = payload?.E || payload?.T || payload?.ts || payload?.data?.[0]?.ts
+  const timestamp = payload?.E || payload?.T || payload?.ts || payload?.data?.[0]?.T || payload?.data?.[0]?.ts
   const asNumber = Number(timestamp)
 
   if (Number.isFinite(asNumber) && asNumber > 0) {
@@ -260,7 +357,7 @@ function printHelp() {
   console.log(`Usage: npm run crypto:capture -- [options]
 
 Options:
-  --provider=<name>        Provider to capture: all, binance, okx. Default: all.
+  --provider=<name>        Provider to capture: all, binance, okx, bybit. Default: all.
   --event-type=<type>      Event type: liquidation, book_delta, all. Default: liquidation.
   --duration-sec=<number>  Capture duration in seconds. Default: 60.
   --duration-ms=<number>   Capture duration in milliseconds.

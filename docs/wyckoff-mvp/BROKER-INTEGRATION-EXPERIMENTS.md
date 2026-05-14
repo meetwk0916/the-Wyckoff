@@ -52,6 +52,8 @@
 
 - `QMT-INTEGRATION.md`
 - `docs/reference/qmt/迅投QMT极速策略交易系统说明文档.pdf`
+- `docs/miniqmt-wyckoff/README.md`
+- `miniqmt-workspace/README.md`
 
 当前验证重点：
 
@@ -146,5 +148,5 @@ PTrade 保留为补充接入，不再作为唯一主路线。
 
 1. 保持前端只依赖统一 bridge 接口。
 2. PTrade 继续走运行时内导出和最小验证。
-3. QMT 优先按 XtQuant 外部 Python 适配器路线设计。
+3. MiniQMT / QMT 已拆成独立 `miniqmt-workspace/`，优先按 XtQuant 外部 Python 适配器路线设计。
 4. 如果 QMT 目标环境对外部 Python 受限，再考虑共享文件交互作为降级方案。

@@ -1,6 +1,6 @@
 # BTC 数据源统一研究
 
-更新日期：2026-05-07
+更新日期：2026-05-11
 
 ## 结论
 
@@ -12,8 +12,9 @@
 当前建议：
 
 - 第一候选：`Tardis.dev` 或同等级历史 tick / order book 数据商，用于研究、历史回放和统一数据落盘验证。
-- 第二候选：`CoinGlass`，用于 OI、Funding、清算和市场情绪类指标；是否可作为唯一主源，需要先验证其订单簿 / tick API 权限和历史深度。
+- 第二候选：`CoinGlass`，用于 OI、Funding、清算和市场情绪类指标；但截至 2026-05-12，核心 API 属于付费路径，当前先跳过真实拉取，只保留 dry-run 导入器。
 - 第三候选：`Kaiko`，更偏机构级全市场数据；适合作为预算允许时的统一源候选。
+- 低门槛补充：优先验证 `Binance public data / exchange-native history`、Bybit 实时 liquidation 和其他可程序化免费源。当前不走需要手工下载文件的 OKX Historical Data 路径；若以后使用，必须先有可自动化下载或稳定文件 schema。
 - 不建议第一阶段以 `Velo` 作为唯一主源；它适合衍生品指标和 dashboard / aggregate 研究，但未必满足 tick 级订单簿回放。
 - 不建议第一阶段只用 `Binance + OKX` 原生接口完成全部研究；它们适合低成本实时采集，但历史回放、跨交易所标准化和数据缺口治理会很快变成主要工程负担。
 
@@ -50,11 +51,85 @@
 | 来源 | 统一覆盖机会 | 优点 | 主要风险 | 当前用途 |
 | --- | --- | --- | --- | --- |
 | Tardis.dev | 高 | 偏原始市场数据，适合历史回放、tick / order book 标准化和本地重放 | 成本、覆盖字段和 liquidation / OI 细节需要实测确认 | 第一候选研究主源 |
-| CoinGlass | 中高 | 强在 OI、Funding、清算、热力图和衍生品情绪 | 原始 tick / order book 深度、历史 API 权限和付费层级需要验证 | 洗盘过滤器指标源候选 |
+| CoinGlass | 中高 | 强在 OI、Funding、清算、热力图和衍生品情绪 | 核心 API 付费；当前不作为近期执行依赖 | 已有 dry-run 导入器，暂跳过真实拉取 |
 | Kaiko | 高 | 机构级市场数据，适合统一数据治理和多交易所覆盖 | 费用和接入流程可能重 | 预算允许时的统一源候选 |
 | Velo | 中 | 衍生品指标、CVD、OI / Funding 聚合研究体验好 | 不适合作为 tick 级订单簿唯一来源的风险较高 | 研究参考与指标校验 |
+| OKX Historical Data | 中 | 官方可下载 tick trade、K 线、Funding 和 L2 order book 历史数据 | 需要手工下载或先确认稳定自动化入口；不符合当前执行偏好 | 暂不推进，除非后续可自动化 |
+| Binance public / native history | 中 | 交易所原生，适合免费或低成本补 Binance spot / futures trades、K 线和部分历史数据 | 历史 liquidation 可得性和格式需要实测；book delta 历史重建成本高 | 低门槛 venue 对照源 |
+| CryptoHFTData | 中 | 宣称免费提供多交易所 tick、order book、funding、liquidation 等高频数据 | 新平台，覆盖起始时间、许可、稳定性和数据质量必须实测 | 值得小样本验证的免费候选 |
 | Binance 原生 API | 中 | 免费、低延迟、BTC 现货和永续数据直接 | 不是跨平台统一源，历史回放和长期落盘需要自建 | 实时 fallback / 对照源 |
 | OKX 原生 API | 中 | 现货 / 永续 / OI / Funding / 订单簿接口完整 | 高档深度和 tick-by-tick 频道可能有权限门槛 | 实时 fallback / 对照源 |
+| Bybit 原生 API | 中 | 免费公共 WebSocket 提供 BTCUSDT all liquidation 频道，适合补 BTC 清算正样本 | 当前只作为 liquidation 补充源，不承担 spot/perp trade、book、OI、Funding 全链路 | 实时 liquidation fallback |
+
+## 爆仓证据分层与低报风险
+
+爆仓数据不能作为单一 Spring 判据。交易所公开 liquidation 流可能存在限流、合并或低报；热力图只表示潜在清算区，不等于已发生清算。因此 Phase C 证据按三层处理：
+
+1. `raw_exchange_liquidation`：Binance / OKX / Bybit 等交易所推送的强平事件，可作为窗口锚点，但需要用 OI、CVD 和盘口恢复交叉验证。
+2. `aggregate_liquidation_context`：CoinGlass 这类聚合 long / short liquidation history，可用于补历史窗口和方向上下文，但不能伪装成逐笔强平。
+3. `liquidation_level_heatmap`：清算热力图 / liquidation map 只用于预筛潜在扫损区，不能进入 Phase C 硬闸门。
+
+当前 Phase C 的 Spring 候选必须继续满足：多头强平主导、结构支撑跌破后收回、spot / perp CVD 支持、盘口恢复，以及 OI 明显下降所代表的去杠杆确认。
+
+## 免费 / 低门槛历史数据源分层
+
+当前目标不是一次性买最贵的数据源，而是尽快补出可复核的 `long liquidation + 价格收回 + 盘口恢复 + CVD 支持` 样本。因此历史源按“能否直接补 Phase C 正样本”分层。
+
+### L0：交易所官方 / 公共历史数据
+
+优先级最高，因为接入成本低，且与当前 Binance / OKX live fallback 概念一致。
+
+- OKX Historical Data：官方页面显示可下载 trade history、candlestick、funding rate 和 high-resolution L2 order book 历史数据。但当前不计划走手工下载 / 手工导入路线；只有在确认可程序化下载或拿到稳定文件 schema 后才重新评估。
+- Binance public / native history：适合补 Binance BTC spot / futures trades、K 线和 venue 对照。Binance liquidation 历史需要单独确认，不能假设 WebSocket `forceOrder` 的实时能力等于历史 API 可下载。
+- Bybit native WebSocket：`allLiquidation.BTCUSDT` 可作为免费实时 BTC 清算补充源。它不解决历史样本缺口，但能提高后续长跑采集碰到 long liquidation 的概率。
+
+恢复验证时的目标：
+
+- 先选 3 到 5 个已知 BTC 插针日期，优先使用可自动化下载的 Binance / 其他公开源窗口；OKX 只在可程序化下载或 schema 稳定后纳入。
+- 转换成 normalized event：`trade`、`book_delta` 或 `book_snapshot`、`funding_rate`、可用时补 `liquidation`。
+- 跑 `crypto:phase-c:evidence`、`crypto:phase-c:classify`、`crypto:phase-c:review`。
+
+### L1：聚合衍生品 API
+
+适合补清算、OI、Funding 和情绪上下文，不一定适合承担 tick / book 主源。
+
+- CoinGlass：可作为清算 / OI / Funding 验证入口；官方 API 文档包含 pair liquidation history endpoint。但截至 2026-05-12，API 付费，当前先跳过真实下载。已有 `crypto:history:coinglass` dry-run 入口，未来有预算或 key 时再恢复验证。
+- Velo / 类似指标平台：适合指标校验或人工研究，不应作为 tick 级 replay 主源。
+
+恢复验证时的目标：
+
+- 用 CoinGlass 拉 1m / 5m BTCUSDT liquidation history。
+- 只把它映射为 aggregate `liquidation` context，不和交易所逐笔 liquidation 混淆。
+- 报告标记 `coverage = aggregate_derivatives_only` 或 `coverage = coinglass_liquidation_context`。
+
+### L2：免费新平台 / 社区数据集
+
+适合快速试错，但进入策略验证前必须做数据质量审计。
+
+- CryptoHFTData：公开资料宣称有免费多交易所高频数据、order book、trades、funding 和 liquidation。它值得试下载一个 BTCUSDT 小窗口，但需要验证起始日期、许可、字段定义、时区、延迟戳和缺口。
+- CCXT：适合统一抓取交易所公开历史 OHLCV、recent trades、funding / OI 等能力，但它不是历史 tick 数据仓库；不能解决深度 order book 历史和稀疏 liquidation 样本问题。
+
+验证目标：
+
+- 只导入一个 10 到 30 分钟窗口，不先大规模下载。
+- 检查字段是否能无损映射到 normalized event。
+- 用 `crypto:phase-c:candidates` 验证能否扫出 long liquidation 候选。
+
+### L3：付费研究主源
+
+如果免费 / 低门槛源不能在 72 小时到 7 天内补出正样本，再考虑。
+
+- Tardis.dev：覆盖 tick-level trades、L2 order book、funding、OI、liquidation 等，适合作 research primary，但价格明显高于“先免费的跑跑”。
+- Kaiko / Amberdata / CoinAPI：更偏机构或商业 API，适合预算允许后的统一治理，不作为当前第一步。
+
+## 当前低门槛推荐路径
+
+1. 每日先跑 `npm run crypto:daily-check`，一次性确认 Bybit 7d 心跳版 liquidation 长跑 screen、最新 provider heartbeat、BTC long / short liquidation 计数和 Phase C candidate 数。
+2. 如需单独排查，再用 `npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_24h_heartbeat` 和 `npm run crypto:phase-c:candidates` 拆开看原始输出。
+3. 每次改 Phase C evidence / classify / review 规则后，用 `npm run crypto:phase-c:check` 跑完整守门链路，避免固定对照样本标签漂移。
+4. 继续使用 Binance Vision 的 trade / kline 历史补价格和 CVD 上下文。
+5. 暂跳过 OKX 手工下载和 CoinGlass 付费 API；它们的影响是短期内更难快速补出历史 long liquidation 正样本，但不会削弱当前分类器的防误判能力。
+6. 如果免费实时采集仍拿不到 long liquidation 样本，再评估可程序化免费源或 Tardis.dev / Kaiko 级别的付费研究主源。
 
 ## 当前推荐数据架构
 
@@ -105,7 +180,7 @@ provider -> raw event -> normalized event -> local append-only store -> replay -
 - 能否下载 order book snapshot / delta。
 - 能否下载 OI、Funding 和 liquidation events。
 - 最小时间粒度是多少。
-- 历史覆盖能否覆盖至少最近 6 个月。
+- 历史覆盖能否覆盖验证日向前至少 6 个月。
 
 ### V-2 实时数据验证
 
@@ -135,11 +210,11 @@ provider -> raw event -> normalized event -> local append-only store -> replay -
 
 ## 数据缺口优先级
 
-当前免费源已经能覆盖 BTC Wyckoff Sensor 的基础层：
+当前免费源已经能覆盖 BTC Wyckoff Sensor 的基础层，并已产出可回放的 OKX BTC fixture：
 
 - Binance / OKX REST：`trade`、`book_snapshot`、`open_interest`、`funding_rate`
 - Binance / OKX WebSocket：`book_delta`
-- Binance / OKX liquidation WebSocket：频道可连通，但短窗口未拿到样本
+- Binance / OKX liquidation WebSocket：频道可连通；OKX 已捕获 1 条 BTC 清算样本，当前样本属于短仓强平主导，分类为 `short_squeeze_only`
 
 剩余缺口按优先级排序如下。
 
@@ -164,13 +239,13 @@ provider -> raw event -> normalized event -> local append-only store -> replay -
 
 下一步：
 
-- 跑 24h 到 72h liquidation capture。
-- 在高波动窗口复跑 probe。
-- 把 liquidation 状态拆成 `channel_connected`、`sample_seen`、`sample_absent`，避免把“没样本”误判为“不可用”。
+- 继续扩充 replay fixture，优先寻找多头强平主导、价格收回、盘口恢复的窗口。
+- 在高波动窗口复跑 capture。
+- 把已有空头强平样本保留为 `short_squeeze_only` 对照，避免把空头挤压误判为 Spring。
 
 低成本补充：
 
-- CoinGlass：优先验证 liquidation history / aggregate liquidation API 是否在可接受价格层级内。
+- CoinGlass：API 付费，当前先跳过真实验证；已有 dry-run 导入器留作未来可选路径。
 - Velo：验证是否能提供清算聚合或派生指标，作为研究校验，不作为 tick 级主源。
 
 ### P1：全网清算与跨交易所聚合
@@ -183,7 +258,7 @@ provider -> raw event -> normalized event -> local append-only store -> replay -
 
 可选来源：
 
-- CoinGlass：清算、OI、Funding、热力图和市场情绪聚合优先看这里。
+- CoinGlass：清算、OI、Funding、热力图和市场情绪聚合能力强，但当前因 API 付费暂不作为执行依赖。
 - Kaiko：机构级聚合数据候选，预算和接入流程更重。
 - Tardis.dev：如果能覆盖多交易所 liquidation / trades / book data，则适合作为历史回放主源；价格是主要问题。
 
@@ -220,7 +295,7 @@ provider -> raw event -> normalized event -> local append-only store -> replay -
 
 可选来源：
 
-- CoinGlass liquidation heatmap。
+- CoinGlass liquidation heatmap；当前因付费暂不作为执行依赖。
 - Kingfisher / 类似清算地图工具。
 
 免费替代：
@@ -249,9 +324,9 @@ provider -> raw event -> normalized event -> local append-only store -> replay -
 
 当前不买 Tardis.dev 的前提下，推荐顺序是：
 
-1. **P0 liquidation 长窗口采集**：用 Binance / OKX 免费 WebSocket 跑 24h 到 72h，确认样本结构。
+1. **P0 liquidation 长窗口采集**：优先恢复 Bybit / Binance / OKX 免费 WebSocket 24h 到 72h 采集，确认样本结构。
 2. **P2 自建历史 replay**：落盘 trades、book_delta、OI、Funding 和 liquidation，先攒自己的 BTC 样本库。
-3. **P1 CoinGlass 低价层验证**：只看全网清算、OI、Funding、热力图是否能用 API 拿到。
+3. **P1 付费聚合源评估**：CoinGlass / Tardis.dev / Kaiko 暂不作为当前执行依赖，等免费实时采集确认为瓶颈后再评估预算。
 4. **P4 本地 CVD / Volume Profile**：用免费 trades 先算局部指标。
 5. **P3 热力图**：暂缓，不作为第一阶段硬依赖。
 
@@ -259,7 +334,8 @@ provider -> raw event -> normalized event -> local append-only store -> replay -
 
 数据缺口不应让系统停止工作，而应影响置信度：
 
-- 缺 liquidation：允许输出 `spring_candidate_low_confidence`，不允许输出 `confirmed_spring`。
+- 缺 liquidation：输出 `insufficient_evidence`，不允许输出 `spring_candidate`。
+- 清算样本为空头强平主导：输出 `short_squeeze_only`，不允许输出 `spring_candidate`。
 - 缺全网聚合：报告标记 `coverage = limited_venues`。
 - 缺历史 replay：不输出策略胜率，只输出在线观察结果。
 - 缺清算热力图：不影响 Spring 事后确认，只影响猎杀位置预判。
