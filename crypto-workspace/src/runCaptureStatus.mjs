@@ -67,19 +67,45 @@ async function readScreenStatus(screenName) {
   try {
     const { stdout, stderr } = await execFileAsync('screen', ['-ls'])
     const output = `${stdout}${stderr}`
+    const sessions = parseScreenSessions(output)
+    const matched = sessions.find((session) => session.name === screenName)
     return {
       name: screenName,
-      status: output.includes(screenName) ? 'running' : 'not_found',
+      status: matched ? 'running' : 'not_found',
+      matchedSession: matched || null,
+      sessions,
       output: output.trim(),
     }
   } catch (error) {
     const output = `${error.stdout || ''}${error.stderr || ''}`
+    const sessions = parseScreenSessions(output)
+    const matched = sessions.find((session) => session.name === screenName)
     return {
       name: screenName,
-      status: output.includes(screenName) ? 'running' : 'not_found',
+      status: matched ? 'running' : 'not_found',
+      matchedSession: matched || null,
+      sessions,
       output: output.trim(),
     }
   }
+}
+
+function parseScreenSessions(output) {
+  return output
+    .split('\n')
+    .map((line) => line.trim())
+    .map((line) => {
+      const match = line.match(/^(\d+)\.([^\s]+)\s+\(([^)]+)\)/)
+      if (!match) {
+        return null
+      }
+      return {
+        id: match[1],
+        name: match[2],
+        state: match[3],
+      }
+    })
+    .filter(Boolean)
 }
 
 async function listJsonlFiles(rootDir) {

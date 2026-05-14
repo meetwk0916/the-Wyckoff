@@ -6,6 +6,7 @@ const workspaceDir = dirname(dirname(fileURLToPath(import.meta.url)))
 const defaultEvidencePath = resolve(workspaceDir, 'reports/phase-c-evidence-last.json')
 const defaultReportPath = resolve(workspaceDir, 'reports/phase-c-classification-last.json')
 const allowedLabels = ['spring_candidate', 'breakdown_risk', 'short_squeeze_only', 'insufficient_evidence']
+const cvdBiasThreshold = 0.05
 
 async function main() {
   const options = parseArgs(process.argv.slice(2))
@@ -97,7 +98,7 @@ function classifyWindow(window) {
     reasons.push('short_liquidation_dominates')
   } else if (label === 'spring_candidate') {
     reasons.push('long_liquidation_with_recovery')
-    reasons.push('structure_support_recovered')
+    reasons.push('phase_c_structure_supportive')
     reasons.push('phase_c_cvd_supportive')
     reasons.push('open_interest_deleveraging_confirmed')
     if (context.fundingContext.crowding === 'crowded_long' || context.fundingContext.crowding === 'extreme_crowded_long') {
@@ -105,8 +106,8 @@ function classifyWindow(window) {
     }
   } else if (label === 'breakdown_risk') {
     reasons.push('washout_recovery_not_confirmed')
-    if (context.liquidationDirection === 'long' && !context.structureContext.supportRecovered) {
-      reasons.push('structure_support_not_recovered')
+    if (context.liquidationDirection === 'long' && !context.structureContext.phaseCStructureSupport) {
+      reasons.push('phase_c_structure_not_supportive')
     }
     if (context.liquidationDirection === 'long' && !context.cvdContext.phaseCFlowSupport) {
       reasons.push('phase_c_cvd_not_supportive')
@@ -145,7 +146,7 @@ function classifyReadyWindow(context) {
   if (
     context.priceRecovery.recoveredFromLow &&
     context.bookRecovery.recoveredFromLow &&
-    context.structureContext.supportRecovered &&
+    context.structureContext.phaseCStructureSupport &&
     context.cvdContext.phaseCFlowSupport &&
     context.openInterestShock.isDeleveraging
   ) {
@@ -190,14 +191,27 @@ function buildPriceRecovery(priceAction) {
 function buildStructureContext(structureContext) {
   const spot = summarizeStructureContext(structureContext.spot)
   const perp = summarizeStructureContext(structureContext.perp)
+  const fallbackVerdict = {
+    phaseCStructureSupport: spot.supportRecovered || perp.supportRecovered,
+    supportBroken: spot.supportBroken || perp.supportBroken,
+    supportRecovered: spot.supportRecovered || perp.supportRecovered,
+    bothSupportRecovered: spot.supportRecovered && perp.supportRecovered,
+    quality: spot.supportRecovered && perp.supportRecovered ? 'strong_support_reclaim' : '',
+  }
+  const verdict = {
+    ...fallbackVerdict,
+    ...(structureContext.verdict || {}),
+  }
 
   return {
     anchor: structureContext.anchor || {},
     spot,
     perp,
-    supportBroken: spot.supportBroken || perp.supportBroken,
-    supportRecovered: spot.supportRecovered || perp.supportRecovered,
-    bothSupportRecovered: spot.supportRecovered && perp.supportRecovered,
+    verdict,
+    phaseCStructureSupport: Boolean(verdict.phaseCStructureSupport),
+    supportBroken: Boolean(verdict.supportBroken),
+    supportRecovered: Boolean(verdict.supportRecovered),
+    bothSupportRecovered: Boolean(verdict.bothSupportRecovered),
   }
 }
 
@@ -212,6 +226,9 @@ function summarizeStructureContext(structure) {
     supportBroken: Boolean(structure?.supportBroken),
     supportRecovered: Boolean(structure?.supportRecovered),
     breakDepthPct: numberOrNull(structure?.breakDepthPct),
+    reclaimDistancePct: numberOrNull(structure?.reclaimDistancePct),
+    recoveryFromBreakPct: numberOrNull(structure?.recoveryFromBreakPct),
+    recoveryQuality: structure?.recoveryQuality || '',
   }
 }
 
@@ -279,12 +296,17 @@ function buildTradeFlowBias(tradeFlow) {
 function buildCvdContext(cvdContext, tradeFlow) {
   const spot = summarizeCvd(cvdContext.spot, tradeFlow.spot)
   const perp = summarizeCvd(cvdContext.perp, tradeFlow.perp)
+  const divergence = cvdContext.divergence || classifyCvdDivergence(spot, perp)
+  const phaseCFlowSupport = Boolean(cvdContext.phaseCFlowSupport ?? isPhaseCFlowSupportive(spot, perp))
 
   return {
     spot,
     perp,
-    divergence: cvdContext.divergence || classifyCvdDivergence(spot, perp),
-    phaseCFlowSupport: Boolean(cvdContext.phaseCFlowSupport ?? isPhaseCFlowSupportive(spot, perp)),
+    divergence,
+    phaseCFlowSupport,
+    verdict:
+      cvdContext.verdict ||
+      buildCvdVerdict(spot, perp, divergence, phaseCFlowSupport),
   }
 }
 
@@ -318,10 +340,10 @@ function classifyCvdBias(deltaRatio) {
   if (deltaRatio === null) {
     return 'unknown'
   }
-  if (deltaRatio >= 0.05) {
+  if (deltaRatio >= cvdBiasThreshold) {
     return 'demand'
   }
-  if (deltaRatio <= -0.05) {
+  if (deltaRatio <= -cvdBiasThreshold) {
     return 'supply'
   }
   return 'balanced'
@@ -354,6 +376,39 @@ function isPhaseCFlowSupportive(spot, perp) {
     return false
   }
   return spot.bias === 'demand' || (spot.bias === 'balanced' && perp.bias !== 'demand')
+}
+
+function buildCvdVerdict(spot, perp, divergence, phaseCFlowSupport) {
+  const observed = spot.quality === 'observed' && perp.quality === 'observed'
+  const reasons = []
+
+  if (!observed) {
+    reasons.push('missing_spot_or_perp_trade_flow')
+  }
+  if (spot.bias === 'demand') {
+    reasons.push('spot_demand')
+  } else if (spot.bias === 'supply') {
+    reasons.push('spot_supply')
+  }
+  if (perp.bias === 'supply') {
+    reasons.push('perp_supply')
+  } else if (perp.bias === 'demand') {
+    reasons.push('perp_demand')
+  }
+  if (divergence === 'spot_demand_perp_supply') {
+    reasons.push('spot_absorption_against_perp_selling')
+  } else if (divergence === 'broad_supply') {
+    reasons.push('broad_selling_pressure')
+  }
+
+  return {
+    quality: observed ? 'observed' : 'insufficient_trade_flow',
+    phaseCFlowSupport,
+    demandConfirmation: observed && (spot.bias === 'demand' || divergence === 'spot_demand_perp_supply'),
+    distributionRisk: observed && (spot.bias === 'supply' || divergence === 'broad_supply'),
+    divergence,
+    reasons,
+  }
 }
 
 function summarizeTradeFlow(flow) {

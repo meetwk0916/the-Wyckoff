@@ -141,10 +141,14 @@ Check active capture status:
 npm run crypto:capture:status
 npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_24h
 npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_24h_heartbeat
+npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_7d_heartbeat
+npm run crypto:daily-check
 ```
 
 This scans raw JSONL files, counts liquidation events, counts BTC-related events, separates true BTC liquidation events, reports BTC long / short liquidation direction counts, reports provider status heartbeat counts and latest source files, and checks the `wyckoff_liq_capture_24h` screen session.
-Use the `--screen` override for provider-specific long-running captures. The heartbeat-enabled Bybit session uses `wyckoff_bybit_liq_capture_24h_heartbeat`.
+Use the `--screen` override for provider-specific long-running captures. Screen matching is exact, so `wyckoff_bybit_liq_capture_24h` no longer matches `wyckoff_bybit_liq_capture_24h_heartbeat` by prefix. The heartbeat-enabled Bybit session uses `wyckoff_bybit_liq_capture_24h_heartbeat`.
+For daily monitoring, prefer the 7d session name `wyckoff_bybit_liq_capture_7d_heartbeat`.
+`crypto:daily-check` defaults to that 7d session, runs capture status and Phase C candidate scan together, writes `reports/daily-capture-check-last.json`, and prints the daily fields to inspect: screen status, latest provider heartbeat, BTC long / short liquidation counts, candidate counts, and parse errors.
 
 Scan raw JSONL into Phase C candidate windows:
 
