@@ -221,9 +221,9 @@ npm run crypto:phase-c:evidence -- --fixture=okx-btc-liquidation-2026-05-09T12-1
 
 当前阶段只输出 price action、trade flow、book recovery、liquidation spike、OI 和 Funding 上下文；它不把窗口判定为 Spring，也不输出交易动作。Funding 现在只作为拥挤度上下文输出为 `crowded_long` / `crowded_short` / `neutral`，不单独作为 Spring 硬条件。
 
-当前 evidence 还会输出 `structureContext`：用窗口锚点前后的 spot / perp trade 与 book mid 观测估算局部支撑、阻力、跌破深度和支撑收回状态。这个结构对象是人工复核输入，不是自动交易动作；在没有更大样本和人工标注前，它只作为保守过滤条件。
+当前 evidence 还会输出 `structureContext`：用窗口锚点前后的 spot / perp trade 与 book mid 观测估算局部支撑、阻力、跌破深度、支撑收回、收回距离和 break 后恢复幅度。`structureContext.verdict` 会把 spot / perp 的支撑跌破与收回汇总为 `phaseCStructureSupport`、`supportBrokenCount`、`supportRecoveredCount` 和 `quality`。这个结构对象是人工复核输入，不是自动交易动作；在没有更大样本和人工标注前，它只作为保守过滤条件。
 
-当前 evidence 还会输出 `cvdContext`：按 spot / perp trades 计算买卖 notional、CVD notional delta、delta ratio、demand / supply bias、spot-perp divergence 和 `phaseCFlowSupport`。这个判据用于区分现货承接、永续砸盘或广谱卖压，阈值仍需要随样本扩充继续校准。
+当前 evidence 还会输出 `cvdContext`：按 spot / perp trades 计算买卖 notional、CVD notional delta、delta ratio、demand / supply bias、spot-perp divergence 和 `phaseCFlowSupport`。`cvdContext.verdict` 会显式输出 `demandConfirmation`、`distributionRisk` 和判据理由，用于区分现货承接、永续砸盘或广谱卖压；当前 demand / supply 的 delta ratio 阈值仍是 5%，需要随样本扩充继续校准。
 
 当前 evidence 还会输出 `derivativesContext.openInterestShock`：当窗口内 OI 至少有两个样本且跌幅达到 3% 以上时，标记为 `sharp_decrease` / `isDeleveraging=true`。这是对交易所爆仓流可能低报的交叉验证；未来 `spring_candidate` 必须有 OI 去杠杆确认，否则降为 `breakdown_risk` 或继续收集证据。
 
@@ -301,6 +301,9 @@ npm run crypto:ws-probe -- --provider=bybit
 npm run crypto:capture -- --provider=bybit --duration-sec=86400 --event-type=liquidation
 npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_24h
 npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_24h_heartbeat
+screen -dmS wyckoff_bybit_liq_capture_7d_heartbeat npm run crypto:capture -- --provider=bybit --duration-sec=604800 --event-type=liquidation
+npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_7d_heartbeat
+npm run crypto:daily-check
 ```
 
-Bybit `allLiquidation.BTCUSDT` 是 liquidation-only 源：它能提高免费实时 BTC 清算样本命中率，但不能替代 Binance / OKX 的 trade、book、OI、Funding 上下文。心跳版长跑 screen 使用 `wyckoff_bybit_liq_capture_24h_heartbeat`；`capture:status` 会输出 BTC long / short liquidation 计数、provider status 计数，以及最新事件和最新 provider status 的来源文件。
+Bybit `allLiquidation.BTCUSDT` 是 liquidation-only 源：它能提高免费实时 BTC 清算样本命中率，但不能替代 Binance / OKX 的 trade、book、OI、Funding 上下文。心跳版 24h screen 使用 `wyckoff_bybit_liq_capture_24h_heartbeat`；日常监控优先使用 7d screen `wyckoff_bybit_liq_capture_7d_heartbeat`。`capture:status` 会精确匹配 screen 名称，并输出 BTC long / short liquidation 计数、provider status 计数，以及最新事件和最新 provider status 的来源文件。日常复核优先跑 `npm run crypto:daily-check`，它会同时刷新 capture status 和 Phase C candidate scan。

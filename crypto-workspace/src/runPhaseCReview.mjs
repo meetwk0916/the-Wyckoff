@@ -126,6 +126,10 @@ function scoreStructure(structure) {
     points += 2
     reasons.push('support_recovered')
   }
+  if (structure.phaseCStructureSupport) {
+    points += 1
+    reasons.push('phase_c_structure_supportive')
+  }
   if (structure.bothSupportRecovered) {
     points += 1
     reasons.push('spot_and_perp_support_recovered')
@@ -172,6 +176,10 @@ function scoreCvd(cvdContext) {
   if (cvdContext.phaseCFlowSupport) {
     points += 1
     reasons.push('phase_c_cvd_supportive')
+  }
+  if (cvdContext.verdict?.distributionRisk) {
+    points -= 1
+    reasons.push('cvd_distribution_risk')
   }
 
   return { points, reasons }
@@ -255,7 +263,7 @@ function classifyScore(total, context, classification) {
   if (context.liquidationDirection === 'short') {
     return 'short_squeeze_only'
   }
-  if (context.liquidationDirection === 'long' && context.structureContext?.supportRecovered && total >= 6) {
+  if (context.liquidationDirection === 'long' && context.structureContext?.phaseCStructureSupport && total >= 6) {
     return 'spring_candidate'
   }
   return 'breakdown_risk'

@@ -1,5 +1,34 @@
 # BTC 数据源验证记录
 
+## 2026-05-14 长跑监控与 Phase C 判据增强
+
+新增内容：
+
+- `crypto:capture:status` 改为精确匹配 screen session 名称，避免 `wyckoff_bybit_liq_capture_24h` 被 `wyckoff_bybit_liq_capture_24h_heartbeat` 前缀误判为 running。
+- 新增 `npm run crypto:daily-check`，一次性刷新 capture status 和 Phase C candidate scan，输出 screen、最新 heartbeat、BTC long / short liquidation、candidate 和 parse error 摘要，并写入 `crypto-workspace/reports/daily-capture-check-last.json`；默认监控 7d screen `wyckoff_bybit_liq_capture_7d_heartbeat`。
+- `structureContext` 新增结构 verdict：汇总 spot / perp 支撑跌破、收回、收回距离和 `phaseCStructureSupport`。
+- `cvdContext` 新增 CVD verdict：输出 `demandConfirmation`、`distributionRisk` 和判据理由；当前 demand / supply 仍使用 5% delta ratio 阈值。
+
+验证结果：
+
+```bash
+npm run crypto:daily-check
+npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_24h
+npm run crypto:phase-c:check
+```
+
+- `crypto:daily-check`：screen `wyckoff_bybit_liq_capture_24h_heartbeat` 为 running，最新 provider heartbeat 为 `2026-05-14T13:39:08.612Z`，BTC long liquidation events 为 0，BTC short liquidation events 为 1，long liquidation candidates 为 0，parse errors 为 0。
+- 旧 screen 名 `wyckoff_bybit_liq_capture_24h` 现在返回 `Capture screen: not_found`，精确匹配修复生效。
+- Phase C verification：passed。
+- 当前固定窗口仍为 0 个 `spring_candidate`、1 个 `short_squeeze_only`、1 个 `insufficient_evidence`，review agreement 仍为 2 / 2。
+
+结论：
+
+- 长跑监控现在有单命令日报入口，旧 / 新 screen 名状态不会再混淆。
+- 24h 心跳 session 接近自然结束时，应改用 `wyckoff_bybit_liq_capture_7d_heartbeat` 作为每日检查目标。
+- Phase C 结构与 CVD 判据从原始上下文升级为显式 verdict，但没有放宽 Spring 判定：未来 `spring_candidate` 仍必须满足 long liquidation、结构支持、CVD 支持、盘口恢复和 OI 去杠杆确认。
+- 当前仍未新增 BTC long liquidation 正样本，继续保留 Bybit 心跳版长跑采集。
+
 ## 2026-05-13 Bybit 24h liquidation capture 重启
 
 ### Phase C evidence / classification 增强

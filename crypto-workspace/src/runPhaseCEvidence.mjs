@@ -10,6 +10,7 @@ const defaultFixtureConfigPath = resolve(workspaceDir, 'config/replay-fixtures.j
 const defaultReportPath = resolve(workspaceDir, 'reports/phase-c-evidence-last.json')
 const fullSensorInputs = ['trade', 'book_delta', 'open_interest', 'funding_rate', 'liquidation']
 const phaseCInputs = ['book_delta', 'liquidation']
+const cvdBiasThreshold = 0.05
 
 async function main() {
   const options = parseArgs(process.argv.slice(2))
@@ -741,12 +742,19 @@ function classifyOpenInterestShock(changePct) {
 function buildCvdContext(tradeFlow) {
   const spot = summarizeCvdBucket(tradeFlow.spot)
   const perp = summarizeCvdBucket(tradeFlow.perp)
+  const divergence = classifyCvdDivergence(spot, perp)
+  const phaseCFlowSupport = isPhaseCFlowSupportive(spot, perp)
 
   return {
     spot,
     perp,
-    divergence: classifyCvdDivergence(spot, perp),
-    phaseCFlowSupport: isPhaseCFlowSupportive(spot, perp),
+    divergence,
+    phaseCFlowSupport,
+    verdict: buildCvdVerdict(spot, perp, divergence, phaseCFlowSupport),
+    thresholds: {
+      demandDeltaRatio: cvdBiasThreshold,
+      supplyDeltaRatio: -cvdBiasThreshold,
+    },
   }
 }
 
@@ -778,10 +786,10 @@ function classifyCvdBias(deltaRatio) {
   if (deltaRatio === null) {
     return 'unknown'
   }
-  if (deltaRatio >= 0.05) {
+  if (deltaRatio >= cvdBiasThreshold) {
     return 'demand'
   }
-  if (deltaRatio <= -0.05) {
+  if (deltaRatio <= -cvdBiasThreshold) {
     return 'supply'
   }
   return 'balanced'
@@ -816,11 +824,50 @@ function isPhaseCFlowSupportive(spot, perp) {
   return spot.bias === 'demand' || (spot.bias === 'balanced' && perp.bias !== 'demand')
 }
 
+function buildCvdVerdict(spot, perp, divergence, phaseCFlowSupport) {
+  const reasons = []
+  const observed = spot.quality === 'observed' && perp.quality === 'observed'
+
+  if (!observed) {
+    reasons.push('missing_spot_or_perp_trade_flow')
+  }
+  if (spot.bias === 'demand') {
+    reasons.push('spot_demand')
+  } else if (spot.bias === 'supply') {
+    reasons.push('spot_supply')
+  }
+  if (perp.bias === 'supply') {
+    reasons.push('perp_supply')
+  } else if (perp.bias === 'demand') {
+    reasons.push('perp_demand')
+  }
+  if (divergence === 'spot_demand_perp_supply') {
+    reasons.push('spot_absorption_against_perp_selling')
+  } else if (divergence === 'broad_supply') {
+    reasons.push('broad_selling_pressure')
+  } else if (divergence === 'broad_demand') {
+    reasons.push('broad_demand_pressure')
+  }
+
+  return {
+    quality: observed ? 'observed' : 'insufficient_trade_flow',
+    phaseCFlowSupport,
+    demandConfirmation: observed && (spot.bias === 'demand' || divergence === 'spot_demand_perp_supply'),
+    distributionRisk: observed && (spot.bias === 'supply' || divergence === 'broad_supply'),
+    divergence,
+    reasons,
+  }
+}
+
 function buildStructureContext(state) {
+  const spot = summarizeStructureForInstrument(state.priceObservations.spot, state)
+  const perp = summarizeStructureForInstrument(state.priceObservations.perp, state)
+
   return {
     anchor: buildStructureAnchor(state),
-    spot: summarizeStructureForInstrument(state.priceObservations.spot, state),
-    perp: summarizeStructureForInstrument(state.priceObservations.perp, state),
+    spot,
+    perp,
+    verdict: summarizePhaseCStructure(spot, perp),
   }
 }
 
@@ -853,8 +900,13 @@ function summarizeStructureForInstrument(observations, state) {
       resistance: null,
       supportBroken: false,
       supportRecovered: false,
+      recoveryQuality: 'insufficient_observations',
       breakDepth: null,
       breakDepthPct: null,
+      reclaimDistance: null,
+      reclaimDistancePct: null,
+      recoveryFromBreak: null,
+      recoveryFromBreakPct: null,
     }
   }
 
@@ -871,6 +923,9 @@ function summarizeStructureForInstrument(observations, state) {
   const last = sorted[sorted.length - 1].price
   const supportBroken = support !== null && postAnchorLow !== null && postAnchorLow < support
   const breakDepth = supportBroken ? support - postAnchorLow : null
+  const supportRecovered = supportBroken && last !== null && support !== null && last >= support
+  const reclaimDistance = supportRecovered ? last - support : null
+  const recoveryFromBreak = supportRecovered && postAnchorLow !== null ? last - postAnchorLow : null
 
   return roundObject({
     observations: sorted.length,
@@ -885,11 +940,76 @@ function summarizeStructureForInstrument(observations, state) {
     postAnchorLow,
     last,
     supportBroken,
-    supportRecovered: supportBroken && last !== null && support !== null && last >= support,
+    supportRecovered,
+    recoveryQuality: classifyStructureRecovery(supportBroken, supportRecovered),
     breakDepth,
     breakDepthPct: breakDepth === null || support === 0 ? null : breakDepth / support,
+    reclaimDistance,
+    reclaimDistancePct: reclaimDistance === null || support === 0 ? null : reclaimDistance / support,
+    recoveryFromBreak,
+    recoveryFromBreakPct: recoveryFromBreak === null || support === 0 ? null : recoveryFromBreak / support,
     distanceToResistance: resistance === null || last === null ? null : resistance - last,
   })
+}
+
+function classifyStructureRecovery(supportBroken, supportRecovered) {
+  if (supportRecovered) {
+    return 'support_broken_and_recovered'
+  }
+  if (supportBroken) {
+    return 'support_broken_not_recovered'
+  }
+  return 'support_not_broken'
+}
+
+function summarizePhaseCStructure(spot, perp) {
+  const instruments = [spot, perp].filter((item) => item.supportMethod !== 'insufficient_observations')
+  const supportBrokenCount = instruments.filter((item) => item.supportBroken).length
+  const supportRecoveredCount = instruments.filter((item) => item.supportRecovered).length
+  const reasons = []
+
+  if (instruments.length === 0) {
+    reasons.push('insufficient_structure_observations')
+  }
+  if (supportBrokenCount > 0) {
+    reasons.push('support_broken')
+  }
+  if (supportRecoveredCount > 0) {
+    reasons.push('support_recovered')
+  }
+  if (supportRecoveredCount === 2) {
+    reasons.push('spot_and_perp_support_recovered')
+  }
+
+  return roundObject({
+    quality: classifyPhaseCStructureQuality(instruments.length, supportBrokenCount, supportRecoveredCount),
+    phaseCStructureSupport: supportRecoveredCount > 0,
+    supportBroken: supportBrokenCount > 0,
+    supportRecovered: supportRecoveredCount > 0,
+    bothSupportRecovered: supportRecoveredCount === 2,
+    observedInstruments: instruments.length,
+    supportBrokenCount,
+    supportRecoveredCount,
+    maxBreakDepthPct: maxDefined(...instruments.map((item) => item.breakDepthPct)),
+    minReclaimDistancePct: minDefined(...instruments.map((item) => item.reclaimDistancePct)),
+    reasons,
+  })
+}
+
+function classifyPhaseCStructureQuality(observedInstruments, supportBrokenCount, supportRecoveredCount) {
+  if (observedInstruments === 0) {
+    return 'insufficient_structure_observations'
+  }
+  if (supportRecoveredCount >= 2) {
+    return 'strong_support_reclaim'
+  }
+  if (supportRecoveredCount === 1) {
+    return 'partial_support_reclaim'
+  }
+  if (supportBrokenCount > 0) {
+    return 'support_broken_not_recovered'
+  }
+  return 'support_not_broken'
 }
 
 function buildPriceAction(tradeFlow, orderBook) {
