@@ -149,6 +149,7 @@ This scans raw JSONL files, counts liquidation events, counts BTC-related events
 Use the `--screen` override for provider-specific long-running captures. Screen matching is exact, so `wyckoff_bybit_liq_capture_24h` no longer matches `wyckoff_bybit_liq_capture_24h_heartbeat` by prefix. The heartbeat-enabled Bybit session uses `wyckoff_bybit_liq_capture_24h_heartbeat`.
 For daily monitoring, prefer the 7d session name `wyckoff_bybit_liq_capture_7d_heartbeat`.
 `crypto:daily-check` defaults to that 7d session, runs capture status and Phase C candidate scan together, writes `reports/daily-capture-check-last.json`, and prints the daily fields to inspect: screen status, latest provider heartbeat, BTC long / short liquidation counts, candidate counts, and parse errors.
+The status report now separates connection health from usable payload health. A running screen with fresh heartbeat but no new provider payload is reported as `connected_no_payload`; `crypto:daily-check` marks that as `capture_connected_no_payload` so a live-but-silent stream is not mistaken for a valid liquidation source.
 
 Scan raw JSONL into Phase C candidate windows:
 

@@ -76,7 +76,14 @@ function buildDailyReport(statusReport, candidateReport, options) {
   const totals = statusReport.totals || {}
   const candidateTotals = candidateReport.totals || {}
   const lastProviderStatusAgeMinutes = minutesSince(totals.lastProviderStatusAt, generatedAt)
-  const attention = buildAttention(statusReport.screen || {}, totals, candidateTotals, lastProviderStatusAgeMinutes)
+  const captureHealth = statusReport.captureHealth || { status: 'unknown', reasons: [] }
+  const attention = buildAttention(
+    statusReport.screen || {},
+    totals,
+    candidateTotals,
+    lastProviderStatusAgeMinutes,
+    captureHealth,
+  )
 
   return {
     reportType: 'crypto_daily_capture_check',
@@ -90,6 +97,9 @@ function buildDailyReport(statusReport, candidateReport, options) {
     },
     capture: {
       screenStatus: statusReport.screen?.status || 'unknown',
+      healthStatus: captureHealth.status || 'unknown',
+      healthReasons: captureHealth.reasons || [],
+      latestStatusFile: captureHealth.latestStatusFile || null,
       matchedSession: statusReport.screen?.matchedSession || null,
       runningSessions: statusReport.screen?.sessions || [],
       files: totals.files || 0,
@@ -100,6 +110,7 @@ function buildDailyReport(statusReport, candidateReport, options) {
       btcLongLiquidationEvents: totals.btcLongLiquidationEvents || 0,
       btcShortLiquidationEvents: totals.btcShortLiquidationEvents || 0,
       providerStatusEvents: totals.providerStatusEvents || 0,
+      dataPayloadEvents: totals.dataPayloadEvents || 0,
       lastEventAt: totals.lastEventAt || '',
       lastEventPath: totals.lastEventPath || '',
       lastProviderStatusAt: totals.lastProviderStatusAt || '',
@@ -118,7 +129,7 @@ function buildDailyReport(statusReport, candidateReport, options) {
   }
 }
 
-function buildAttention(screen, totals, candidateTotals, heartbeatAgeMinutes) {
+function buildAttention(screen, totals, candidateTotals, heartbeatAgeMinutes, captureHealth = {}) {
   const reasons = []
 
   if (screen.status !== 'running') {
@@ -131,6 +142,9 @@ function buildAttention(screen, totals, candidateTotals, heartbeatAgeMinutes) {
   }
   if ((totals.parseErrors || 0) > 0) {
     reasons.push('parse_errors_present')
+  }
+  if (captureHealth.status === 'connected_no_payload') {
+    reasons.push('capture_connected_no_payload')
   }
   if ((candidateTotals.longLiquidationCandidates || 0) > 0 || (totals.btcLongLiquidationEvents || 0) > 0) {
     reasons.push('long_liquidation_candidate_available')
@@ -158,6 +172,8 @@ function minutesSince(timestamp, nowTimestamp) {
 function printSummary(report) {
   console.log('Daily crypto capture check')
   console.log(`Capture screen: ${report.capture.screenStatus}`)
+  console.log(`Capture health: ${report.capture.healthStatus}`)
+  console.log(`Capture health reasons: ${report.capture.healthReasons.join(', ') || 'none'}`)
   console.log(`Screen name: ${report.screenName}`)
   console.log(`Last provider status at: ${report.capture.lastProviderStatusAt || 'n/a'}`)
   console.log(
