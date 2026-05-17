@@ -1,5 +1,30 @@
 # BTC 数据源验证记录
 
+## 2026-05-17 收尾审计与文档同步
+
+审计命令：
+
+```bash
+npm run crypto:daily-check
+npm run crypto:capture:status -- --screen=wyckoff_okx_liq_capture_72h_heartbeat
+npm run crypto:phase-c:check
+screen -ls
+```
+
+当前状态：
+
+- 后台 screen 仍有 5 个：Bybit 7d、Binance liquidation 72h、OKX liquidation 72h、OKX trade 72h、OKX book 72h。
+- `crypto:daily-check`：BTC events 71,108；BTC liquidation events 8；BTC long liquidation events 7；BTC short liquidation events 1；full sensor ready candidates 8；parse errors 0。
+- `crypto:daily-check` 同时输出 `capture_connected_no_payload` 和 `long_liquidation_candidate_available`。这表示 Bybit / 最新 provider status 仍可能静默，但本地 raw 数据已有可复核 long liquidation 候选。
+- `crypto:capture:status -- --screen=wyckoff_okx_liq_capture_72h_heartbeat`：screen running，data payload events 70,556，latest event 来自 OKX `spot_books_delta`；但 capture health 仍显示 `connected_no_payload`，因为最新 provider status file 指向 Binance `perp_force_order` heartbeat。
+- `crypto:phase-c:check`：3 个固定窗口，0 个 `spring_candidate`，1 个 `breakdown_risk`，1 个 `short_squeeze_only`，1 个 `insufficient_evidence`，review agreement 3 / 3。
+
+风险与后续：
+
+- 监控层风险：capture health 仍是全局摘要，不是严格 provider / screen 分源健康判断；下一步应把 provider / screen 维度纳入 status report。
+- 样本层风险：已经有 long liquidation 候选，但第一个复核窗口是 `breakdown_risk`，仍没有满足 CVD、盘口恢复和 OI 去杠杆的 `spring_candidate`。
+- 工程方向：继续保留长跑采集，把每个候选窗口跑 evidence / classify / review，并把有代表性的正负样本固化到 fixture。
+
 ## 2026-05-17 Bybit 长跑 payload 有效性闸门
 
 背景：

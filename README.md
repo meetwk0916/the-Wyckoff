@@ -38,12 +38,12 @@ ptrade 当前首要功能清单：
 - ptrade 仍是把这套策略推进到受控自动化交易阶段的主试验场，但自动化执行必须建立在撤单重试、次日对账、审批和风控闸门完成之后。
 - BTC / crypto 方向已明确第一阶段不做实盘、不做左侧抄底机器人；先验证统一数据源、标准化事件契约和 Phase C 洗盘过滤器。
 
-截至 2026-05-10，BTC / crypto 方向已经进入可回放的 Phase C 早期验证：
+截至 2026-05-17，BTC / crypto 方向已经进入可回放、可复核的 Phase C 早期验证：
 
 - `crypto-workspace/` 已实现公开 REST / WebSocket 探测、JSONL 落盘、replay window、固定 fixture、Phase C evidence 聚合和保守分类。
-- 当前固定两个 OKX BTC replay fixture：一个真实 BTC 清算窗口，一个无清算对照窗口。
-- 当前唯一真实清算窗口被分类为 `short_squeeze_only`，不是 `spring_candidate`；这说明系统已经能挡住“空头挤压误判成 Spring”的第一类风险。
-- 当前仍未完成结构支撑 / 阻力识别、正式 spot/perp CVD 判据、20 个历史窗口人工复核、Phase D LPS paper trade、P&F 仓位管理和 sandbox。
+- 当前固定 3 个 OKX BTC replay fixture：`short_squeeze_only` 对照、`breakdown_risk` 长清算负样本、`insufficient_evidence` 无清算对照。
+- 当前没有 `spring_candidate`；新增长清算负样本说明系统已经能挡住“long liquidation + 价格收回但 CVD / 盘口 / OI 不确认”的第二类误判风险。
+- 当前仍未完成 20 个历史窗口人工复核、Phase D LPS paper trade、P&F 仓位管理和 sandbox。
 
 ## 项目定位
 
@@ -213,5 +213,5 @@ PTRADE_MODE=upstream PTRADE_UPSTREAM_URL=http://172.19.46.143:19090 npm run ptra
 - `npm run crypto:phase-c:review`：运行 Phase C 人工复核索引评分
 - `npm run crypto:phase-c:verify`：检查固定 Phase C 对照样本标签和 review agreement
 - `npm run crypto:phase-c:check`：按 evidence → classify → review → verify 顺序运行完整 Phase C 守门链路
-- `npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_24h_heartbeat`：监控心跳版 Bybit liquidation 长跑采集
-- `npm run crypto:daily-check`：每日汇总 Bybit 7d 长跑 screen、最新心跳、BTC long / short liquidation 和 Phase C candidate 状态
+- `npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_7d_heartbeat`：监控心跳版 Bybit liquidation 长跑采集
+- `npm run crypto:daily-check`：每日汇总 Bybit 7d 长跑 screen、最新心跳、BTC long / short liquidation 和 Phase C candidate 状态；当 `capture_connected_no_payload` 与 `long_liquidation_candidate_available` 同时出现时，应继续审查 OKX/Binance 分源数据，不要把全局 health 误读成所有数据源失效

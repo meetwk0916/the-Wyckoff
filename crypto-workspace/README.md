@@ -139,17 +139,17 @@ Check active capture status:
 
 ```bash
 npm run crypto:capture:status
-npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_24h
-npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_24h_heartbeat
 npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_7d_heartbeat
+npm run crypto:capture:status -- --screen=wyckoff_okx_liq_capture_72h_heartbeat
 npm run crypto:daily-check
 ```
 
-This scans raw JSONL files, counts liquidation events, counts BTC-related events, separates true BTC liquidation events, reports BTC long / short liquidation direction counts, reports provider status heartbeat counts and latest source files, and checks the `wyckoff_liq_capture_24h` screen session.
-Use the `--screen` override for provider-specific long-running captures. Screen matching is exact, so `wyckoff_bybit_liq_capture_24h` no longer matches `wyckoff_bybit_liq_capture_24h_heartbeat` by prefix. The heartbeat-enabled Bybit session uses `wyckoff_bybit_liq_capture_24h_heartbeat`.
+This scans raw JSONL files, counts liquidation events, counts BTC-related events, separates true BTC liquidation events, reports BTC long / short liquidation direction counts, reports provider status heartbeat counts and latest source files, and checks the configured screen session. The raw `crypto:capture:status` default remains the legacy `wyckoff_liq_capture_24h`; for current monitoring, pass an explicit `--screen`.
+Use the `--screen` override for provider-specific long-running captures. Screen matching is exact, so `wyckoff_bybit_liq_capture_24h` no longer matches `wyckoff_bybit_liq_capture_24h_heartbeat` by prefix.
 For daily monitoring, prefer the 7d session name `wyckoff_bybit_liq_capture_7d_heartbeat`.
 `crypto:daily-check` defaults to that 7d session, runs capture status and Phase C candidate scan together, writes `reports/daily-capture-check-last.json`, and prints the daily fields to inspect: screen status, latest provider heartbeat, BTC long / short liquidation counts, candidate counts, and parse errors.
 The status report now separates connection health from usable payload health. A running screen with fresh heartbeat but no new provider payload is reported as `connected_no_payload`; `crypto:daily-check` marks that as `capture_connected_no_payload` so a live-but-silent stream is not mistaken for a valid liquidation source.
+As of 2026-05-17, capture health is still summarized from the latest provider status observed in the scanned raw files. When multiple provider screens are running, inspect `lastEventPath`, `lastProviderStatusPath`, `Data payload events`, and the requested screen name before treating a `connected_no_payload` health result as provider-specific.
 
 Scan raw JSONL into Phase C candidate windows:
 
@@ -212,7 +212,7 @@ npm run crypto:phase-c:check
 npm run crypto:phase-c:verify
 ```
 
-`crypto:phase-c:check` runs evidence, classification, review, and verification in the required order. `crypto:phase-c:verify` only reads the latest classification, review, and candidate reports. It fails if the pinned short-squeeze and insufficient-evidence fixtures change labels unexpectedly or if review disagreement appears. Candidate long / short liquidation counts are printed as status only, so future positive long-liquidation samples do not break the guardrail.
+`crypto:phase-c:check` runs evidence, classification, review, and verification in the required order. `crypto:phase-c:verify` only reads the latest classification, review, and candidate reports. It fails if the pinned short-squeeze, breakdown-risk, or insufficient-evidence fixtures change labels unexpectedly or if review disagreement appears. Candidate long / short liquidation counts are printed as status only, so future positive long-liquidation samples do not break the guardrail.
 
 ## Phase 0 Exit Criteria
 
@@ -223,19 +223,19 @@ npm run crypto:phase-c:verify
 
 ## Current Status
 
-As of 2026-05-13:
+As of 2026-05-17:
 
-- Two pinned OKX BTC replay fixtures exist in `config/replay-fixtures.json`.
-- `npm run crypto:fixtures` passes both fixtures.
-- `npm run crypto:phase-c:evidence` emits one Phase C-ready evidence window and one insufficient-evidence control window, including local structure support / recovery context.
+- Three pinned OKX BTC replay fixtures exist in `config/replay-fixtures.json`: one `short_squeeze_only`, one `breakdown_risk`, and one `insufficient_evidence`.
+- `npm run crypto:fixtures` passes all three fixtures.
+- `npm run crypto:phase-c:evidence` emits two Phase C-ready evidence windows and one insufficient-evidence control window, including local structure support / recovery context.
 - `npm run crypto:phase-c:evidence` also emits first-pass spot / perp CVD context with notional delta, delta ratio, demand / supply bias, divergence, and Phase C flow support.
 - Funding crowding and post-anchor 1m / 3m order book changes are now captured as calibration context; they do not replace the hard Spring gates.
-- `npm run crypto:phase-c:classify` classifies the current BTC liquidation window as `short_squeeze_only`, not `spring_candidate`; future Spring candidates must still pass long liquidation direction, structure recovery, book recovery, Phase C CVD support, and OI deleveraging.
-- `npm run crypto:phase-c:review` reads the seed review index, scores both windows, and reports 2 reviewed / 0 pending with system-review agreement.
+- `npm run crypto:phase-c:classify` classifies the pinned liquidation windows as `short_squeeze_only` and `breakdown_risk`, not `spring_candidate`; future Spring candidates must still pass long liquidation direction, structure recovery, book recovery, Phase C CVD support, and OI deleveraging.
+- `npm run crypto:phase-c:review` reads the seed review index, scores all three windows, and reports 3 reviewed / 0 pending with system-review agreement.
 - `npm run crypto:phase-c:check` is the preferred local guardrail because it runs evidence, classify, review, and verify in order.
-- `npm run crypto:phase-c:candidates` currently finds 1 BTC liquidation candidate in local raw data: 0 long liquidation candidates and 1 short liquidation control window. This means no `spring_candidate` sample has been captured yet, which is expected for sparse liquidation streams.
+- `npm run crypto:phase-c:candidates` currently finds 8 BTC liquidation candidates in local raw data: 7 long liquidation candidates and 1 short liquidation control window. The first reviewed long-liquidation cluster is a `breakdown_risk` sample because CVD, book recovery, and OI deleveraging are not supportive.
 - `npm run crypto:history:free-sources -- --provider=binance_vision --date=2026-05-09 --live` confirms Binance Vision spot/perp aggTrades and 1m klines are available for that date, while USDT-M `liquidationSnapshot` is unavailable.
-- `npm run crypto:history:binance-vision -- --date=2026-05-09 --limit-rows=1000 --download` imports 1,000 spot and 1,000 USDT-M futures aggTrade rows as normalized trade events. Candidate scan sees them as additional BTC events but still finds 0 long liquidation candidates.
-- Bybit public WebSocket support is now wired as an additional free realtime liquidation source. The heartbeat-enabled long-running session name is `wyckoff_bybit_liq_capture_24h_heartbeat`, and its status command is `npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_24h_heartbeat`.
+- `npm run crypto:history:binance-vision -- --date=2026-05-09 --limit-rows=1000 --download` imports 1,000 spot and 1,000 USDT-M futures aggTrade rows as normalized trade events. Candidate scan sees them as additional BTC events but still depends on separate liquidation evidence.
+- Bybit public WebSocket support is wired as an additional free realtime liquidation source. The current heartbeat-enabled long-running session name is `wyckoff_bybit_liq_capture_7d_heartbeat`, and its status command is `npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_7d_heartbeat`.
 - Capture status now reports provider heartbeat counts and BTC long / short liquidation direction counts using the shared liquidation utility in `src/utils/liquidations.mjs`.
 - The next BTC work is sample expansion, CVD threshold calibration, and broader review-index coverage, not trade execution.
