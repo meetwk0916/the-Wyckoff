@@ -9,7 +9,8 @@
 - 已完成 canonical 脚本的一轮真实参数回测，确认报告、状态记忆、试仓升级和 runner 管理主路径可运行。
 - 已在实际 ptrade 环境验证 `ptrade_phase1_validation.py` 的 JSON / sqlite3 无 HTTP 默认落盘链路可用。
 - 已补 `on_order_response` / `on_trade_response` 主推事件记录，以及 `get_all_orders` / `get_all_positions` 账户级巡检报告。
-- 当前待现场验证的是模拟盘里的主推 / 轮询 / 账户级巡检、订单 / 成交 / 持仓 / 报告闭环、交易时段 L2 / 逐笔权限验证、`cancel_order` 重报价与次日对账。
+- 当前下一步按两层审查推进：先用回测审查结构候选是否符合 Wyckoff，再用模拟盘审查主推 / 轮询 / 账户级巡检、订单 / 成交 / 持仓 / 报告闭环。
+- 随后仍需现场验证交易时段 L2 / 逐笔权限、`cancel_order` 重报价与次日对账。
 - ptrade 仍是把这套策略推进到受控自动化交易阶段的主试验场，但自动化执行尚未启用。
 
 ## 当前分支边界
@@ -42,7 +43,7 @@
 	ptrade 路线文档统一从 `../docs/ptrade-wyckoff/README.md` 进入；当前操作说明见 `../docs/wyckoff-mvp/PTRADE-TRADING.md`。
 3. 如果要使用静态标的池文件，把 `config/ptrade-wyckoff-policy-pool.json` 放到 ptrade 的 `get_research_path()` 返回目录。
 4. 先用回测运行，确认日志里能看到 `Wyckoff ptrade report => ...`。
-5. 再进入模拟盘验证订单、成交、持仓和状态文件。
+5. 按 `../docs/ptrade-wyckoff/TWO-LAYER-REVIEW.md` 先做回测结构审查，再进入模拟盘验证订单、成交、持仓和状态文件。
 
 ## 重要限制
 

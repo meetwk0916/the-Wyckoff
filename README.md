@@ -25,17 +25,19 @@ ptrade 当前首要功能清单：
 - 以 `docs/ptrade-wyckoff/GOALS.md` 约束当前阶段的成功准则、硬闸门和执行顺序。
 - 以 `get_research_path()` + JSON + sqlite3 作为 Phase 0 默认数据交换基线；HTTP relay 只作为可选增强或本地联调工具。
 - 接入 L2 深度盘口、逐笔成交流、长周期量价、RS / Beta、静态标的池和状态记忆。
-- 当前主线是模拟盘订单 / 成交 / 持仓 / 报告闭环，其后再补真实交易时段 L2 / 逐笔权限验证。
+- 当前主线已拆成两层审查：先用回测确认结构候选是否符合 Wyckoff，再用模拟盘确认订单 / 成交 / 持仓 / 报告闭环；其后再补真实交易时段 L2 / 逐笔权限验证。
 
 ## 当前阶段状态
 
-截至 2026-05-08：
+截至 2026-05-14：
 
 - 已完成 canonical ptrade 脚本的一轮真实参数回测，确认交易报告、状态记忆、试仓升级和 runner 管理主路径可运行。
 - 已在实际 ptrade 环境完成 Phase 0 无 HTTP 预检查，确认 `get_research_path()` 下的 JSON 与 sqlite3 默认落盘链路可用。
+- 已补 `on_order_response` / `on_trade_response` 主推事件记录，以及 `get_all_orders` / `get_all_positions` 账户级巡检报告。
+- 已新增 `docs/ptrade-wyckoff/TWO-LAYER-REVIEW.md`，下一步先审查 20 个 A 股历史结构窗口，再审查模拟盘执行闭环。
 - 当前默认仍允许在无 L2 / 逐笔成交的环境下降级运行；这不阻塞 Phase 1 回测，但会直接限制 Phase 2 微观确认质量和 Phase 3 自动化交易可信度。
 - Windows relay 已收窄为客户端本地联调工具，不再默认等同于 ptrade 策略运行环境的真实目标地址。
-- 当前最短路径不再是继续堆前端，也不是继续扩写 HTTP relay，而是先补模拟盘里的订单 / 成交 / 持仓 / 报告闭环，再补交易时段 L2 / 逐笔权限验证。
+- 当前最短路径不再是继续堆前端，也不是继续扩写 HTTP relay，而是先做回测结构审查，再做模拟盘订单 / 成交 / 持仓 / 报告闭环。
 - ptrade 仍是把这套策略推进到受控自动化交易阶段的主试验场，但自动化执行必须建立在撤单重试、次日对账、审批和风控闸门完成之后。
 - BTC / crypto 方向已明确第一阶段不做实盘、不做左侧抄底机器人；先验证统一数据源、标准化事件契约和 Phase C 洗盘过滤器。
 
@@ -82,6 +84,7 @@ ptrade 当前首要功能清单：
 
 当前尚未完成的部分：
 
+- ptrade 回测结构审查：至少 20 个 A 股历史结构窗口、候选证据链、拒绝原因和数据缺口复核
 - ptrade 模拟盘里的订单、成交、持仓与报告闭环验证
 - 基于研究目录 JSON / sqlite3 的 bridge 读取路径
 - 真实 ptrade 环境中 L2 / 逐笔成交的稳定授权与回测覆盖
@@ -99,6 +102,9 @@ ptrade 当前首要功能清单：
 - [docs/ptrade-wyckoff/README.md](docs/ptrade-wyckoff/README.md)
 - [docs/ptrade-wyckoff/GOALS.md](docs/ptrade-wyckoff/GOALS.md)
 - [docs/ptrade-wyckoff/IMPLEMENTATION-PATH.md](docs/ptrade-wyckoff/IMPLEMENTATION-PATH.md)
+- [docs/ptrade-wyckoff/TWO-LAYER-REVIEW.md](docs/ptrade-wyckoff/TWO-LAYER-REVIEW.md)
+- [docs/ptrade-wyckoff/PAPER-TRADE-ACCEPTANCE.md](docs/ptrade-wyckoff/PAPER-TRADE-ACCEPTANCE.md)
+- [docs/ptrade-wyckoff/RISK-REGISTER.md](docs/ptrade-wyckoff/RISK-REGISTER.md)
 - [docs/wyckoff-mvp/QMT-INTEGRATION.md](docs/wyckoff-mvp/QMT-INTEGRATION.md)
 - [docs/miniqmt-wyckoff/README.md](docs/miniqmt-wyckoff/README.md)
 - [docs/miniqmt-wyckoff/GOALS.md](docs/miniqmt-wyckoff/GOALS.md)
@@ -181,12 +187,9 @@ PTRADE_MODE=upstream PTRADE_UPSTREAM_URL=http://<broker-reachable-ip-or-host>:19
 - `npm run build`：构建生产产物
 - `npm run lint`：运行 ESLint
 - `npm run preview`：本地预览构建结果
-<<<<<<< ptrade-workspace
 - `npm run ptrade:bridge`：启动 ptrade Phase 1 本地 bridge，仅用于当前前端联调
 - `npm run ptrade:relay`：启动最小 ptrade relay，仅用于本地 UI 契约调试
-=======
-- `npm run ptrade:relay`：启动最小 ptrade relay，接收 `POST /ptrade` 并暴露 `GET /health`、`GET /l2-order-flow`
-- `npm run ptrade:bridge`：启动 ptrade Phase 1 本地 bridge
+- `npm run ptrade:paper-report:check -- --report=<report.json>`：检查 ptrade 模拟盘日终报告字段和执行对账摘要
 - `npm run crypto:fixtures`：运行固定 BTC replay fixture 检查
 - `npm run crypto:phase-c:evidence`：从 fixture / 时间窗生成 Phase C 证据报告
 - `npm run crypto:phase-c:classify`：把 Phase C 证据保守分类为候选 / 风险 / 空头挤压 / 证据不足
@@ -195,4 +198,7 @@ PTRADE_MODE=upstream PTRADE_UPSTREAM_URL=http://<broker-reachable-ip-or-host>:19
 - `npm run crypto:phase-c:check`：按 evidence → classify → review → verify 顺序运行完整 Phase C 守门链路
 - `npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_24h_heartbeat`：监控心跳版 Bybit liquidation 长跑采集
 - `npm run crypto:daily-check`：每日汇总 Bybit 7d 长跑 screen、最新心跳、BTC long / short liquidation 和 Phase C candidate 状态
->>>>>>> main
+- `npm run crypto:phase-c:candidates`：扫描 Phase C 候选窗口
+- `npm run crypto:history:free-sources`：探测免费历史数据源可用性
+- `npm run crypto:history:binance-vision`：导入 Binance Vision 历史 trade / kline 数据
+- `npm run crypto:history:coinglass`：导入 CoinGlass 历史清算数据，当前真实 API 需要付费权限
