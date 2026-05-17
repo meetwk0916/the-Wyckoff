@@ -29,7 +29,7 @@
 - 已补 `on_order_response` / `on_trade_response` 主推事件记录，日终报告会保留主推事件、轮询订单 / 成交 / 持仓，以及账户级巡检摘要。
 - 已补 `get_all_orders` / `get_all_positions` 账户级巡检；报告会标记疑似非本策略委托、非策略持仓、可撤账户委托和 `cancel_order_ex` 可用性，但不会自动撤销非本策略委托。
 - 当前默认把 L2 / 逐笔成交缺失视为可降级输入，而不是硬闸门；这不阻塞 Phase 1 回测，但会直接影响 Spring 真伪、UTAD 假突破和后续自动化交易前的微观确认质量。
-- 当前下一阶段主线是：模拟盘现场验证主推 / 轮询 / 账户级巡检是否对齐 -> 真实交易时段 L2 / 逐笔权限验证 -> `cancel_order` 超时撤单后的重报价 / 次日对账 -> 再推进带审批与风控闸门的自动化交易。
+- 当前下一阶段主线已拆成两层审查：先用回测审查结构候选是否符合 Wyckoff，再用模拟盘现场验证主推 / 轮询 / 账户级巡检是否对齐；之后再做真实交易时段 L2 / 逐笔权限验证、`cancel_order` 超时撤单后的重报价 / 次日对账，以及带审批与风控闸门的自动化交易评估。
 
 当前已知环境补充：
 
@@ -148,6 +148,8 @@ g.utad_min_volume_ratio = 1.00
 6. 运行回测。
 7. 在日志里查看 `Wyckoff ptrade report => ...`。
 
+回测完成后先进入结构审查，而不是直接用收益判断策略是否成立。审查口径见 `docs/ptrade-wyckoff/TWO-LAYER-REVIEW.md`，最低要确认候选类型、结构证据、拒绝原因、失效条件和数据缺口是否可复核。
+
 回测日志里和微观确认最相关的新字段可以这样看：
 
 - `l2DataAvailable` / `tradeStreamDataAvailable`：当前运行环境是否真的返回了 L2 / 逐笔数据。
@@ -181,7 +183,7 @@ g.utad_min_volume_ratio = 1.00
 7. 对照 `orderResponseEvents`、`tradeResponseEvents`、`orders`、`trades`、`positions`、`accountAudit` 和 `executionReconciliation`，确认主推、轮询、账户级巡检、策略状态记忆是否一致。
 8. 把日终报告复制到本地后运行 `npm run ptrade:paper-report:check -- --report=<report-path>`，用本地核对脚本先筛掉字段缺失和计数不一致。
 
-完整验收清单见 `docs/ptrade-wyckoff/PAPER-TRADE-ACCEPTANCE.md`。
+完整验收清单见 `docs/ptrade-wyckoff/PAPER-TRADE-ACCEPTANCE.md`。模拟盘审查应作为第二层执行审查，晚于回测结构审查。
 
 ## 当前信号逻辑的定位
 
@@ -247,10 +249,11 @@ g.utad_min_volume_ratio = 1.00
 
 ## 推荐的下一步增强
 
-1. 用同一份 canonical 脚本在 ptrade 模拟盘验证主推事件、轮询结果、账户级巡检、订单、成交、持仓、报告和状态记忆闭环。
-2. 在真实 ptrade 交易时段验证 `get_snapshot()`、逐笔成交接口和 L2 权限。
-3. 在权限确认后，把 `g.require_l2_for_entry` 和 `g.require_trade_stream_for_entry` 切到 `True` 做严格微观确认回测。
-4. 继续细化 Spring / LPS / BUEC 的触发条件，引入更真实的 cause count、次级测试和失败结构识别。
-5. 增加 `cancel_order()` 超时撤单后的重新报价逻辑。
-6. 增加次日对账逻辑，结合 `get_deliver()` 与 `get_fundjour()` 做报告校验。
-7. 在上述能力都稳定后，再把 ptrade 推进到带审批、风控和恢复策略的自动化交易阶段。
+1. 按 `docs/ptrade-wyckoff/TWO-LAYER-REVIEW.md` 建立 20 个 A 股历史结构窗口，先审查回测候选是否符合 Wyckoff。
+2. 把候选、证据、拒绝原因、失效条件和数据缺口沉淀为可复核输出。
+3. 用同一份 canonical 脚本在 ptrade 模拟盘验证主推事件、轮询结果、账户级巡检、订单、成交、持仓、报告和状态记忆闭环。
+4. 在真实 ptrade 交易时段验证 `get_snapshot()`、逐笔成交接口和 L2 权限。
+5. 在权限确认后，把 `g.require_l2_for_entry` 和 `g.require_trade_stream_for_entry` 切到 `True` 做严格微观确认回测。
+6. 增加 `cancel_order()` 超时撤单后的重新报价逻辑。
+7. 增加次日对账逻辑，结合 `get_deliver()` 与 `get_fundjour()` 做报告校验。
+8. 在上述能力都稳定后，再把 ptrade 推进到带审批、风控和恢复策略的自动化交易阶段。
