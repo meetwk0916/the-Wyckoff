@@ -1,5 +1,97 @@
 # BTC 数据源验证记录
 
+## 2026-05-17 Bybit 长跑 payload 有效性闸门
+
+背景：
+
+- `wyckoff_bybit_liq_capture_7d_heartbeat` 仍在运行，且 provider heartbeat 新鲜。
+- 但最新 Bybit 输出文件长时间只有 `provider_status / capture_heartbeat`，没有真实 liquidation payload。
+- 单看 screen running 和 heartbeat 会把“连接活着”误判为“数据源有效”。
+
+新增内容：
+
+- `crypto:capture:status` 新增 `captureHealth`。
+- 最新 provider status 文件如果没有真实 data payload，并且 heartbeat 中 `receivedMessages` 不增长、`writtenEvents=0`，会标记为 `connected_no_payload`。
+- `crypto:daily-check` 会输出 capture health，并在该状态下把 `Needs attention` 置为 `true`，reason 为 `capture_connected_no_payload`。
+
+验证结果：
+
+```bash
+npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_7d_heartbeat
+npm run crypto:daily-check
+```
+
+- screen：running。
+- latest heartbeat：新鲜。
+- capture health：`connected_no_payload`。
+- health reasons：`latest_status_file_has_no_data_payload`、`heartbeat_received_messages_not_increasing`、`heartbeat_written_events_zero`。
+- BTC liquidation events：1。
+- BTC long liquidation events：0。
+- BTC short liquidation events：1。
+- long liquidation candidates：0。
+- daily check attention：`capture_connected_no_payload`。
+
+结论：
+
+- Bybit 长跑可以继续挂着，但当前不能再被视为充分有效的 liquidation 数据源。
+- 当前只能说明 Bybit 公共流在本采集方式下连接存活、没有给出有效 BTC liquidation payload；不能说明市场没有 long liquidation。
+- 下一步应并行恢复 Binance `forceOrder` / OKX `liquidation-orders` 对照采集，并继续把 `long liquidation + 价格收回 + 盘口恢复` 作为目标样本。
+
+后续处理：
+
+```bash
+screen -dmS wyckoff_binance_liq_capture_72h_heartbeat npm run crypto:capture -- --provider=binance --duration-sec=259200 --event-type=liquidation
+screen -dmS wyckoff_okx_liq_capture_72h_heartbeat npm run crypto:capture -- --provider=okx --duration-sec=259200 --event-type=liquidation
+screen -dmS wyckoff_okx_trade_capture_72h_heartbeat npm run crypto:capture -- --provider=okx --duration-sec=259200 --event-type=trade
+screen -dmS wyckoff_okx_book_capture_72h_heartbeat npm run crypto:capture -- --provider=okx --duration-sec=259200 --event-type=book_delta
+npm run crypto:rest-capture -- --provider=okx --event-type=derivatives_state
+npm run crypto:daily-check
+```
+
+结果：
+
+- 后台 screen：Bybit 7d、Binance liquidation 72h、OKX liquidation 72h、OKX trade 72h、OKX book 72h 均为 running。
+- OKX `liquidation-orders` 很快写入 BTC long liquidation payload；说明“几天没有样本”的主要问题是 Bybit 公共流沉默，而不是市场没有 long liquidation。
+- 补 OKX trade、book_delta、open_interest、funding_rate 后，`crypto:daily-check` 输出：
+  - BTC events：43,251
+  - BTC liquidation events：8
+  - BTC long liquidation events：7
+  - BTC short liquidation events：1
+  - Long liquidation candidates：7
+  - Short liquidation candidates：1
+  - Full sensor ready candidates：8
+  - Attention reasons：`long_liquidation_candidate_available`
+
+下一步：
+
+- 从 7 个 OKX long liquidation 候选中挑选窗口，跑 Phase C evidence / classification。
+- 优先检查是否满足价格收回、盘口恢复、CVD 支持和 OI 去杠杆。
+- 若候选只满足 liquidation 但不满足结构恢复，继续作为失败 / breakdown 对照样本进入 review index。
+
+### OKX long liquidation 负样本固化
+
+窗口：
+
+```bash
+npm run crypto:phase-c:evidence -- --start=2026-05-17T14:02:04.577Z --end=2026-05-17T14:12:04.577Z --provider=all --report=crypto-workspace/reports/phase-c-evidence-okx-long-2026-05-17T1407Z.json
+npm run crypto:phase-c:classify -- --evidence=crypto-workspace/reports/phase-c-evidence-okx-long-2026-05-17T1407Z.json --report=crypto-workspace/reports/phase-c-classification-okx-long-2026-05-17T1407Z.json
+```
+
+结果：
+
+- 7 条 BTC long liquidation，最大 raw size 12.74。
+- spot / perp 均出现支撑跌破后收回，结构判据为 `strong_support_reclaim`。
+- spot CVD 与 perp CVD 均为 `supply`，flow verdict 为 `broad_selling_pressure`。
+- post-3m 盘口没有恢复：top depth 未改善、ask depth 未回落、imbalance 未改善。
+- OI 只有 1 个样本，无法确认去杠杆。
+- 分类结果：`breakdown_risk`，confidence `medium`。
+
+结论：
+
+- 这是一个高价值负样本：它满足“long liquidation + 价格收回”的表层形态，但缺少需求回流、盘口恢复和 OI 去杠杆确认。
+- 已固化为 `okx-btc-long-liquidation-2026-05-17T14-07Z` fixture，并在 review index 中标记为 `breakdown_risk`。
+- 这个样本用于防止 Phase C 算法把所有长清算后的结构收回都误判为 Spring。
+
 ## 2026-05-14 长跑监控与 Phase C 判据增强
 
 新增内容：

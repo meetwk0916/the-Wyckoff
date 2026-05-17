@@ -31,6 +31,7 @@ async function main() {
     totals: buildTotals(fileSummaries),
     files: fileSummaries,
   }
+  report.captureHealth = buildCaptureHealth(report)
 
   await mkdir(dirname(options.reportPath), { recursive: true })
   await writeFile(options.reportPath, `${JSON.stringify(report, null, 2)}\n`)
@@ -149,6 +150,9 @@ async function summarizeJsonlFile(filePath) {
     btcMixedOrUnknownLiquidationEvents: 0,
     liquidationEvents: 0,
     providerStatusEvents: 0,
+    dataPayloadEvents: 0,
+    providerStatuses: {},
+    lastCaptureHeartbeat: null,
     firstEventAt: '',
     lastEventAt: '',
     lastEventPath: '',
@@ -203,10 +207,17 @@ async function summarizeJsonlFile(filePath) {
       if (event.eventType === 'provider_status') {
         summary.providerStatusEvents += 1
         const providerStatusAt = event.receivedAt || event.eventTime || ''
+        const providerStatus = event.payload?.status || 'unknown'
+        summary.providerStatuses[providerStatus] = (summary.providerStatuses[providerStatus] || 0) + 1
         if (providerStatusAt >= (summary.lastProviderStatusAt || '')) {
           summary.lastProviderStatusAt = providerStatusAt
           summary.lastProviderStatusPath = filePath
         }
+        if (providerStatus === 'capture_heartbeat') {
+          summary.lastCaptureHeartbeat = parseCaptureHeartbeat(event)
+        }
+      } else {
+        summary.dataPayloadEvents += 1
       }
 
       const btcMatched = eventMatchesSymbol(event, 'BTC')
@@ -293,6 +304,7 @@ function buildTotals(fileSummaries) {
         totals.btcMixedOrUnknownLiquidationEvents + file.btcMixedOrUnknownLiquidationEvents,
       liquidationEvents: totals.liquidationEvents + file.liquidationEvents,
       providerStatusEvents: totals.providerStatusEvents + file.providerStatusEvents,
+      dataPayloadEvents: totals.dataPayloadEvents + file.dataPayloadEvents,
       firstEventAt: earlierTimestamp(totals.firstEventAt, file.firstEventAt),
       ...latestTimestampFields(
         totals.lastEventAt,
@@ -325,6 +337,7 @@ function buildTotals(fileSummaries) {
       btcMixedOrUnknownLiquidationEvents: 0,
       liquidationEvents: 0,
       providerStatusEvents: 0,
+      dataPayloadEvents: 0,
       firstEventAt: '',
       lastEventAt: '',
       lastEventPath: '',
@@ -335,6 +348,86 @@ function buildTotals(fileSummaries) {
       parseErrors: 0,
     },
   )
+}
+
+function parseCaptureHeartbeat(event) {
+  const message = event.payload?.message || ''
+  const receivedMessages = parseHeartbeatMetric(message, 'receivedMessages')
+  const writtenEvents = parseHeartbeatMetric(message, 'writtenEvents')
+
+  return {
+    eventTime: event.eventTime || '',
+    receivedAt: event.receivedAt || '',
+    receivedMessages,
+    writtenEvents,
+    message,
+  }
+}
+
+function parseHeartbeatMetric(message, key) {
+  const match = String(message || '').match(new RegExp(`${key}=([0-9]+)`))
+  if (!match) {
+    return null
+  }
+  const value = Number(match[1])
+  return Number.isFinite(value) ? value : null
+}
+
+function buildCaptureHealth(report) {
+  const latestStatusFile = report.files.find((file) => file.path === report.totals.lastProviderStatusPath) || null
+  const heartbeat = latestStatusFile?.lastCaptureHeartbeat || null
+  const reasons = []
+
+  if (report.screen.status !== 'running') {
+    reasons.push('capture_screen_not_running')
+  }
+  if (!report.totals.lastProviderStatusAt) {
+    reasons.push('missing_provider_heartbeat')
+  }
+  if (latestStatusFile && latestStatusFile.dataPayloadEvents === 0) {
+    reasons.push('latest_status_file_has_no_data_payload')
+  }
+  if (heartbeat?.receivedMessages !== null && heartbeat?.receivedMessages <= 1) {
+    reasons.push('heartbeat_received_messages_not_increasing')
+  }
+  if (heartbeat?.writtenEvents !== null && heartbeat?.writtenEvents === 0) {
+    reasons.push('heartbeat_written_events_zero')
+  }
+
+  let status = 'unknown'
+  if (report.screen.status !== 'running') {
+    status = 'not_running'
+  } else if (!report.totals.lastProviderStatusAt) {
+    status = 'no_heartbeat'
+  } else if (
+    latestStatusFile &&
+    latestStatusFile.dataPayloadEvents === 0 &&
+    heartbeat?.writtenEvents === 0
+  ) {
+    status = 'connected_no_payload'
+  } else if ((report.totals.btcLiquidationEvents || 0) === 0) {
+    status = 'connected_no_btc_liquidation'
+  } else {
+    status = 'data_available'
+  }
+
+  return {
+    status,
+    latestStatusFile: latestStatusFile
+      ? {
+          path: latestStatusFile.path,
+          events: latestStatusFile.events,
+          providerStatusEvents: latestStatusFile.providerStatusEvents,
+          dataPayloadEvents: latestStatusFile.dataPayloadEvents,
+          liquidationEvents: latestStatusFile.liquidationEvents,
+          btcLiquidationEvents: latestStatusFile.btcLiquidationEvents,
+          lastProviderStatusAt: latestStatusFile.lastProviderStatusAt,
+          lastCaptureHeartbeat: heartbeat,
+          providerStatuses: latestStatusFile.providerStatuses,
+        }
+      : null,
+    reasons,
+  }
 }
 
 function incrementLiquidationDirection(summary, direction) {
@@ -390,6 +483,17 @@ function printSummary(report) {
   console.log(`BTC mixed/unknown liquidation events: ${report.totals.btcMixedOrUnknownLiquidationEvents}`)
   console.log(`Liquidation events: ${report.totals.liquidationEvents}`)
   console.log(`Provider status events: ${report.totals.providerStatusEvents}`)
+  console.log(`Data payload events: ${report.totals.dataPayloadEvents}`)
+  console.log(`Capture health: ${report.captureHealth.status}`)
+  console.log(`Capture health reasons: ${report.captureHealth.reasons.join(', ') || 'none'}`)
+  if (report.captureHealth.latestStatusFile?.lastCaptureHeartbeat) {
+    const heartbeat = report.captureHealth.latestStatusFile.lastCaptureHeartbeat
+    console.log(
+      `Latest heartbeat payload: receivedMessages=${heartbeat.receivedMessages ?? 'n/a'}; writtenEvents=${
+        heartbeat.writtenEvents ?? 'n/a'
+      }`,
+    )
+  }
   console.log(`First event at: ${report.totals.firstEventAt || 'n/a'}`)
   console.log(`Last event at: ${report.totals.lastEventAt || 'n/a'}`)
   console.log(`Last event file: ${report.totals.lastEventPath || 'n/a'}`)

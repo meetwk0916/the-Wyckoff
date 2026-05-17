@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "reviewSet": "btc_phase_c_seed_reviews",
-  "updatedAt": "2026-05-11T00:00:00.000Z",
+  "updatedAt": "2026-05-17T14:12:04.000Z",
   "labels": [
     "confirmed_spring",
     "failed_spring",
@@ -28,6 +28,23 @@
         "spotCvdBias": "supply",
         "perpCvdBias": "supply",
         "bookRecovery": true,
+        "fullSensorReady": true
+      }
+    },
+    {
+      "id": "okx-btc-long-liquidation-2026-05-17T14-07Z",
+      "reviewStatus": "reviewed",
+      "humanLabel": "breakdown_risk",
+      "reviewer": "codex",
+      "reviewedAt": "2026-05-17T14:12:04.000Z",
+      "rationale": "Long-liquidation cluster broke and recovered local support, but spot and perp CVD both show broad supply, post-3m book recovery failed, and OI deleveraging is not confirmed. Treat it as a failed Spring / breakdown-risk calibration sample, not a Spring candidate.",
+      "machineReadableFactors": {
+        "supportRecovered": true,
+        "liquidationDirection": "long",
+        "spotCvdBias": "supply",
+        "perpCvdBias": "supply",
+        "bookRecovery": false,
+        "openInterestDeleveraging": false,
         "fullSensorReady": true
       }
     },

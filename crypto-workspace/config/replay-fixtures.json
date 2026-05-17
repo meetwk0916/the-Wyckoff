@@ -16,6 +16,21 @@
       }
     },
     {
+      "id": "okx-btc-long-liquidation-2026-05-17T14-07Z",
+      "description": "OKX BTC long liquidation cluster with structure reclaim but broad supply CVD and no confirmed book or OI recovery.",
+      "provider": "all",
+      "symbol": "BTC",
+      "eventType": "all",
+      "start": "2026-05-17T14:02:04Z",
+      "end": "2026-05-17T14:12:04Z",
+      "limit": 200,
+      "expected": {
+        "minimumPhaseCReady": true,
+        "fullSensorReady": true,
+        "requiredEventTypes": ["trade", "book_delta", "open_interest", "funding_rate", "liquidation"]
+      }
+    },
+    {
       "id": "okx-btc-no-liquidation-2026-05-09T12-33Z",
       "description": "One-hour OKX trade and book_delta control window with OI/Funding but no BTC liquidation.",
       "provider": "okx",

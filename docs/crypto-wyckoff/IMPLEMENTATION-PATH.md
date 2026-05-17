@@ -50,6 +50,7 @@
 - Phase C evidence 内的窗口级 spot / perp CVD 判据
 - Phase C evidence 内的 funding 拥挤度上下文和 anchor 前后盘口 1m / 3m 分桶
 - Phase C review index 与规则评分报告
+- capture status / daily check 已区分 screen 心跳健康与真实 payload 健康；长时间只有 heartbeat、没有 provider payload 时会标记为 `connected_no_payload`
 
 待实现：
 
@@ -186,11 +187,12 @@
 截至 2026-05-11，REST / WebSocket 探测、落盘、replay、fixture、Phase C evidence、启发式结构上下文、窗口级 CVD、保守分类、review index、规则评分和候选窗口扫描入口已经可用。当前下一步不再是继续做基础 probe，而是扩充可复核样本和结构 / CVD 复核：
 
 1. 扩充 Phase C 样本集，优先寻找 `long liquidation + 价格收回 + 盘口恢复` 的 BTC 窗口。
-2. 复核并强化当前 evidence 内的启发式结构支撑 / 阻力上下文，扩展 `reviews/phase-c-review-index.json`，避免只凭微观流判断 Spring。
-3. 扩样本校准当前 spot / perp CVD 的 demand / supply 阈值和 divergence 解释。
-4. 保留 `short_squeeze_only` 保护，防止把空头挤压误判成 Spring。
-5. 至少做 20 个历史窗口人工复核，再进入 Phase D LPS paper trade。
-6. 当本地样本不足成为真实瓶颈时，先恢复 Bybit `allLiquidation.BTCUSDT` 长跑采集。当前不走 OKX 手工下载路线，CoinGlass API 因付费先跳过；仍不够时再评估可程序化免费源或 Tardis.dev / Kaiko 等付费研究主源。
+2. 把 Bybit `allLiquidation.BTCUSDT` 长跑视为补充源而非充分源；若 `daily-check` 标记 `connected_no_payload`，并行恢复 Binance `forceOrder` / OKX `liquidation-orders` 对照采集。
+3. 复核并强化当前 evidence 内的启发式结构支撑 / 阻力上下文，扩展 `reviews/phase-c-review-index.json`，避免只凭微观流判断 Spring。
+4. 扩样本校准当前 spot / perp CVD 的 demand / supply 阈值和 divergence 解释。
+5. 保留 `short_squeeze_only` 保护，防止把空头挤压误判成 Spring。
+6. 至少做 20 个历史窗口人工复核，再进入 Phase D LPS paper trade。
+7. 当本地样本不足成为真实瓶颈时，当前不走 OKX 手工下载路线，CoinGlass API 因付费先跳过；仍不够时再评估可程序化免费源或 Tardis.dev / Kaiko 等付费研究主源。
 
 ## 当前已新增的 Phase 2 入口
 
