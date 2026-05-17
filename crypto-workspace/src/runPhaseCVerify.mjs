@@ -9,6 +9,7 @@ const defaultCandidatePath = resolve(workspaceDir, 'reports/phase-c-candidates-l
 
 const expectedClassifications = {
   'okx-btc-liquidation-2026-05-09T12-14Z': 'short_squeeze_only',
+  'okx-btc-long-liquidation-2026-05-17T14-07Z': 'breakdown_risk',
   'okx-btc-no-liquidation-2026-05-09T12-33Z': 'insufficient_evidence',
 }
 
@@ -93,6 +94,7 @@ async function readOptionalJson(path) {
 function printSummary(classificationReport, reviewReport, candidateReport) {
   console.log(`Classification windows: ${classificationReport.totals?.windows ?? 'n/a'}`)
   console.log(`Spring candidates: ${classificationReport.totals?.springCandidate ?? 'n/a'}`)
+  console.log(`Breakdown risk: ${classificationReport.totals?.breakdownRisk ?? 'n/a'}`)
   console.log(`Short squeeze only: ${classificationReport.totals?.shortSqueezeOnly ?? 'n/a'}`)
   console.log(`Insufficient evidence: ${classificationReport.totals?.insufficientEvidence ?? 'n/a'}`)
   console.log(`Review agreement: ${reviewReport.totals?.agreement ?? 'n/a'}`)

@@ -68,6 +68,30 @@ npm run crypto:daily-check
 - 优先检查是否满足价格收回、盘口恢复、CVD 支持和 OI 去杠杆。
 - 若候选只满足 liquidation 但不满足结构恢复，继续作为失败 / breakdown 对照样本进入 review index。
 
+### OKX long liquidation 负样本固化
+
+窗口：
+
+```bash
+npm run crypto:phase-c:evidence -- --start=2026-05-17T14:02:04.577Z --end=2026-05-17T14:12:04.577Z --provider=all --report=crypto-workspace/reports/phase-c-evidence-okx-long-2026-05-17T1407Z.json
+npm run crypto:phase-c:classify -- --evidence=crypto-workspace/reports/phase-c-evidence-okx-long-2026-05-17T1407Z.json --report=crypto-workspace/reports/phase-c-classification-okx-long-2026-05-17T1407Z.json
+```
+
+结果：
+
+- 7 条 BTC long liquidation，最大 raw size 12.74。
+- spot / perp 均出现支撑跌破后收回，结构判据为 `strong_support_reclaim`。
+- spot CVD 与 perp CVD 均为 `supply`，flow verdict 为 `broad_selling_pressure`。
+- post-3m 盘口没有恢复：top depth 未改善、ask depth 未回落、imbalance 未改善。
+- OI 只有 1 个样本，无法确认去杠杆。
+- 分类结果：`breakdown_risk`，confidence `medium`。
+
+结论：
+
+- 这是一个高价值负样本：它满足“long liquidation + 价格收回”的表层形态，但缺少需求回流、盘口恢复和 OI 去杠杆确认。
+- 已固化为 `okx-btc-long-liquidation-2026-05-17T14-07Z` fixture，并在 review index 中标记为 `breakdown_risk`。
+- 这个样本用于防止 Phase C 算法把所有长清算后的结构收回都误判为 Spring。
+
 ## 2026-05-14 长跑监控与 Phase C 判据增强
 
 新增内容：
