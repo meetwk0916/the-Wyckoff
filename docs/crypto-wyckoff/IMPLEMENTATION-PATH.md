@@ -50,7 +50,7 @@
 - Phase C evidence 内的窗口级 spot / perp CVD 判据
 - Phase C evidence 内的 funding 拥挤度上下文和 anchor 前后盘口 1m / 3m 分桶
 - Phase C review index 与规则评分报告
-- capture status / daily check 已区分 screen 心跳健康与真实 payload 健康；长时间只有 heartbeat、没有 provider payload 时会标记为 `connected_no_payload`
+- capture status / daily check 已区分 screen 心跳健康与真实 payload 健康；无真实 payload 时会标记为 `connected_no_payload`，真实 payload 超过阈值未更新时会标记为 `market_payload_stale`
 - 3 个固定 Phase C replay fixture：`short_squeeze_only`、`breakdown_risk` 和 `insufficient_evidence`
 
 待实现：
@@ -59,7 +59,7 @@
 - 更正式的结构支撑 / 阻力识别与人工标注索引
 - spot CVD / perp CVD 阈值校准和跨样本复核
 - replay 样本库扩充和人工复核索引
-- capture health 按 provider / screen 精确切分，避免全局最新 provider status 掩盖 OKX/Binance 分源有效数据
+- capture health 按 provider / screen 精确切分，进一步避免多 screen 运行时的分源诊断歧义
 
 最小采集对象：
 
@@ -312,4 +312,4 @@ npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_7d_heartbeat
 npm run crypto:daily-check
 ```
 
-Bybit `allLiquidation.BTCUSDT` 是 liquidation-only 源：它能提高免费实时 BTC 清算样本命中率，但不能替代 Binance / OKX 的 trade、book、OI、Funding 上下文。日常监控优先使用 7d screen `wyckoff_bybit_liq_capture_7d_heartbeat`。`capture:status` 会精确匹配 screen 名称，并输出 BTC long / short liquidation 计数、provider status 计数，以及最新事件和最新 provider status 的来源文件。日常复核优先跑 `npm run crypto:daily-check`，它会同时刷新 capture status 和 Phase C candidate scan。2026-05-17 审计发现：当前 capture health 仍可能被全局最新 provider status 影响，因此分源诊断时要同时看 `lastEventPath`、`lastProviderStatusPath`、`Data payload events` 和对应 screen 名。
+Bybit `allLiquidation.BTCUSDT` 是 liquidation-only 源：它能提高免费实时 BTC 清算样本命中率，但不能替代 Binance / OKX 的 trade、book、OI、Funding 上下文。日常监控优先使用 7d screen `wyckoff_bybit_liq_capture_7d_heartbeat`。`capture:status` 会精确匹配 screen 名称，并输出 BTC long / short liquidation 计数、provider status 计数、最新 provider status、最新真实 data payload 和 payload 停滞年龄。日常复核优先跑 `npm run crypto:daily-check`，它会同时刷新 capture status 和 Phase C candidate scan。2026-05-18 起，如果 screen / heartbeat 仍活着但真实 data payload 超过 15 分钟未更新，会显示 `market_payload_stale`。

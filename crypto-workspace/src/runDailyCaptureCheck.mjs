@@ -11,6 +11,7 @@ const defaultStatusReportPath = resolve(workspaceDir, 'reports/capture-status-la
 const defaultCandidateReportPath = resolve(workspaceDir, 'reports/phase-c-candidates-last.json')
 const defaultReportPath = resolve(workspaceDir, 'reports/daily-capture-check-last.json')
 const staleHeartbeatMinutes = 15
+const staleDataPayloadMinutes = 15
 
 async function main() {
   const options = parseArgs(process.argv.slice(2))
@@ -18,6 +19,7 @@ async function main() {
   await runScript('runCaptureStatus.mjs', [
     `--screen=${options.screenName}`,
     `--report=${options.statusReportPath}`,
+    `--stale-data-payload-min=${options.staleDataPayloadMinutes}`,
   ])
   await runScript('runPhaseCCandidateScan.mjs', [`--report=${options.candidateReportPath}`])
 
@@ -36,6 +38,7 @@ function parseArgs(args) {
     statusReportPath: defaultStatusReportPath,
     candidateReportPath: defaultCandidateReportPath,
     reportPath: defaultReportPath,
+    staleDataPayloadMinutes,
   }
 
   for (const arg of args) {
@@ -47,6 +50,8 @@ function parseArgs(args) {
       options.candidateReportPath = resolve(arg.slice('--candidates-report='.length))
     } else if (arg.startsWith('--report=')) {
       options.reportPath = resolve(arg.slice('--report='.length))
+    } else if (arg.startsWith('--stale-data-payload-min=')) {
+      options.staleDataPayloadMinutes = parsePositiveNumber(arg.slice('--stale-data-payload-min='.length))
     } else if (arg === '--help' || arg === '-h') {
       printHelp()
       process.exit(0)
@@ -56,6 +61,14 @@ function parseArgs(args) {
   }
 
   return options
+}
+
+function parsePositiveNumber(value) {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error(`Expected positive number, got: ${value}`)
+  }
+  return parsed
 }
 
 async function runScript(scriptName, args) {
@@ -84,6 +97,13 @@ function buildDailyReport(statusReport, candidateReport, options) {
     lastProviderStatusAgeMinutes,
     captureHealth,
   )
+  const lastDataPayload = captureHealth.lastDataPayload || {
+    at: totals.lastDataPayloadAt || '',
+    ageMinutes: minutesSince(totals.lastDataPayloadAt, generatedAt),
+    path: totals.lastDataPayloadPath || '',
+    eventType: totals.lastDataPayloadEventType || '',
+    staleAfterMinutes: options.staleDataPayloadMinutes,
+  }
 
   return {
     reportType: 'crypto_daily_capture_check',
@@ -111,6 +131,11 @@ function buildDailyReport(statusReport, candidateReport, options) {
       btcShortLiquidationEvents: totals.btcShortLiquidationEvents || 0,
       providerStatusEvents: totals.providerStatusEvents || 0,
       dataPayloadEvents: totals.dataPayloadEvents || 0,
+      lastDataPayloadAt: lastDataPayload.at || '',
+      lastDataPayloadAgeMinutes: lastDataPayload.ageMinutes,
+      lastDataPayloadPath: lastDataPayload.path || '',
+      lastDataPayloadEventType: lastDataPayload.eventType || '',
+      staleDataPayloadMinutes: lastDataPayload.staleAfterMinutes || options.staleDataPayloadMinutes,
       lastEventAt: totals.lastEventAt || '',
       lastEventPath: totals.lastEventPath || '',
       lastProviderStatusAt: totals.lastProviderStatusAt || '',
@@ -145,6 +170,9 @@ function buildAttention(screen, totals, candidateTotals, heartbeatAgeMinutes, ca
   }
   if (captureHealth.status === 'connected_no_payload') {
     reasons.push('capture_connected_no_payload')
+  }
+  if (captureHealth.status === 'market_payload_stale' || captureHealth.reasons?.includes('data_payload_stale')) {
+    reasons.push('market_payload_stale')
   }
   if ((candidateTotals.longLiquidationCandidates || 0) > 0 || (totals.btcLongLiquidationEvents || 0) > 0) {
     reasons.push('long_liquidation_candidate_available')
@@ -181,6 +209,13 @@ function printSummary(report) {
       report.capture.lastProviderStatusAgeMinutes === null ? 'n/a' : `${report.capture.lastProviderStatusAgeMinutes}m`
     }`,
   )
+  console.log(`Last data payload at: ${report.capture.lastDataPayloadAt || 'n/a'}`)
+  console.log(
+    `Last data payload age: ${
+      report.capture.lastDataPayloadAgeMinutes === null ? 'n/a' : `${report.capture.lastDataPayloadAgeMinutes}m`
+    }`,
+  )
+  console.log(`Last data payload type: ${report.capture.lastDataPayloadEventType || 'n/a'}`)
   console.log(`BTC events: ${report.capture.btcEvents}`)
   console.log(`BTC liquidation events: ${report.capture.btcLiquidationEvents}`)
   console.log(`BTC long liquidation events: ${report.capture.btcLongLiquidationEvents}`)
@@ -202,6 +237,8 @@ Options:
   --status-report=<path>       Capture status report path.
   --candidates-report=<path>   Phase C candidate report path.
   --report=<path>              Daily check report path.
+  --stale-data-payload-min=<minutes>
+                               Mark market payload stale after this many minutes. Default: ${staleDataPayloadMinutes}.
 `)
 }
 

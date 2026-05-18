@@ -125,7 +125,7 @@
 ## 当前低门槛推荐路径
 
 1. 每日先跑 `npm run crypto:daily-check`，一次性确认 Bybit 7d 心跳版 liquidation 长跑 screen、最新 provider heartbeat、BTC long / short liquidation 计数和 Phase C candidate 数。
-2. 如需单独排查，再用 `npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_7d_heartbeat`、`npm run crypto:capture:status -- --screen=wyckoff_okx_liq_capture_72h_heartbeat` 和 `npm run crypto:phase-c:candidates` 拆开看原始输出。当前 capture health 仍按最新 provider status 汇总，不能完全等同于按 provider / screen 切分后的健康结论。
+2. 如需单独排查，再用 `npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_7d_heartbeat`、`npm run crypto:capture:status -- --screen=wyckoff_okx_liq_capture_72h_heartbeat` 和 `npm run crypto:phase-c:candidates` 拆开看原始输出。重点看 `Capture health`、`Last data payload at`、`Last data payload age`、`Last provider status at` 和候选数量；`market_payload_stale` 表示 heartbeat 新鲜但真实行情 payload 已停滞。
 3. 每次改 Phase C evidence / classify / review 规则后，用 `npm run crypto:phase-c:check` 跑完整守门链路，避免固定对照样本标签漂移。
 4. 继续使用 Binance Vision 的 trade / kline 历史补价格和 CVD 上下文。
 5. 暂跳过 OKX 手工下载和 CoinGlass 付费 API；它们的影响是短期内更难快速补出历史 long liquidation 正样本，但不会削弱当前分类器的防误判能力。

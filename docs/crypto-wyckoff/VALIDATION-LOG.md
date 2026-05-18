@@ -1,5 +1,40 @@
 # BTC 数据源验证记录
 
+## 2026-05-18 market payload 停滞检测
+
+背景：
+
+- 5 个长跑 screen 仍为 running，provider heartbeat 仍在刷新。
+- 但人工检查 tail 发现 OKX / Binance / Bybit 最近写入多为 `provider_status / capture_heartbeat`，真实 market payload 停在更早时间。
+- 仅看 `screen running` 和 `Last provider status at` 会误判为数据仍有效。
+
+新增内容：
+
+- `crypto:capture:status` 新增 `lastDataPayloadAt`、`lastDataPayloadPath`、`lastDataPayloadEventType` 和 `lastDataPayloadAgeMinutes`。
+- 默认 15 分钟没有真实非 `provider_status` payload 时，`captureHealth.status` 标记为 `market_payload_stale`。
+- `crypto:daily-check` 输出 latest market payload 并把 `market_payload_stale` 纳入 attention reasons。
+
+验证结果：
+
+```bash
+npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_7d_heartbeat
+npm run crypto:daily-check
+```
+
+- Capture screen：running。
+- Provider heartbeat age：约 1.5 分钟。
+- Capture health：`market_payload_stale`。
+- Last data payload at：`2026-05-17T14:58:25.384Z`。
+- Last data payload age：约 1365.7 分钟。
+- Last data payload type：`book_delta`。
+- Attention reasons：`market_payload_stale`、`long_liquidation_candidate_available`。
+
+结论：
+
+- 当前长跑 screen 仍活着，但真实可复核行情 payload 已停滞。
+- 这轮新增检测后，不需要人工 tail 文件即可区分“heartbeat 新鲜”和“market payload 新鲜”。
+- 下一步应重启 OKX / Binance 对照采集，或继续把 capture health 做成 provider / screen 维度的分源状态表。
+
 ## 2026-05-17 收尾审计与文档同步
 
 审计命令：

@@ -12,6 +12,7 @@ const workspaceDir = dirname(dirname(fileURLToPath(import.meta.url)))
 const defaultDataDir = resolve(workspaceDir, 'data/raw')
 const defaultReportPath = resolve(workspaceDir, 'reports/capture-status-last.json')
 const DEFAULT_SCREEN_NAME = 'wyckoff_liq_capture_24h'
+const DEFAULT_STALE_DATA_PAYLOAD_MINUTES = 15
 
 async function main() {
   const options = parseArgs(process.argv.slice(2))
@@ -28,6 +29,7 @@ async function main() {
     generatedAt: new Date().toISOString(),
     screen: screenStatus,
     dataDir: options.dataDir,
+    staleDataPayloadMinutes: options.staleDataPayloadMinutes,
     totals: buildTotals(fileSummaries),
     files: fileSummaries,
   }
@@ -44,6 +46,7 @@ function parseArgs(args) {
     dataDir: defaultDataDir,
     reportPath: defaultReportPath,
     screenName: DEFAULT_SCREEN_NAME,
+    staleDataPayloadMinutes: DEFAULT_STALE_DATA_PAYLOAD_MINUTES,
   }
 
   for (const arg of args) {
@@ -53,6 +56,8 @@ function parseArgs(args) {
       options.reportPath = resolve(arg.slice('--report='.length))
     } else if (arg.startsWith('--screen=')) {
       options.screenName = arg.slice('--screen='.length)
+    } else if (arg.startsWith('--stale-data-payload-min=')) {
+      options.staleDataPayloadMinutes = parsePositiveNumber(arg.slice('--stale-data-payload-min='.length))
     } else if (arg === '--help' || arg === '-h') {
       printHelp()
       process.exit(0)
@@ -62,6 +67,14 @@ function parseArgs(args) {
   }
 
   return options
+}
+
+function parsePositiveNumber(value) {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error(`Expected positive number, got: ${value}`)
+  }
+  return parsed
 }
 
 async function readScreenStatus(screenName) {
@@ -153,6 +166,10 @@ async function summarizeJsonlFile(filePath) {
     dataPayloadEvents: 0,
     providerStatuses: {},
     lastCaptureHeartbeat: null,
+    firstDataPayloadAt: '',
+    lastDataPayloadAt: '',
+    lastDataPayloadPath: '',
+    lastDataPayloadEventType: '',
     firstEventAt: '',
     lastEventAt: '',
     lastEventPath: '',
@@ -218,6 +235,15 @@ async function summarizeJsonlFile(filePath) {
         }
       } else {
         summary.dataPayloadEvents += 1
+        const dataPayloadAt = event.receivedAt || event.eventTime || ''
+        if (!summary.firstDataPayloadAt) {
+          summary.firstDataPayloadAt = dataPayloadAt
+        }
+        if (dataPayloadAt >= (summary.lastDataPayloadAt || '')) {
+          summary.lastDataPayloadAt = dataPayloadAt
+          summary.lastDataPayloadPath = filePath
+          summary.lastDataPayloadEventType = event.eventType || ''
+        }
       }
 
       const btcMatched = eventMatchesSymbol(event, 'BTC')
@@ -305,6 +331,19 @@ function buildTotals(fileSummaries) {
       liquidationEvents: totals.liquidationEvents + file.liquidationEvents,
       providerStatusEvents: totals.providerStatusEvents + file.providerStatusEvents,
       dataPayloadEvents: totals.dataPayloadEvents + file.dataPayloadEvents,
+      firstDataPayloadAt: earlierTimestamp(totals.firstDataPayloadAt, file.firstDataPayloadAt),
+      ...latestTimestampFields(
+        totals.lastDataPayloadAt,
+        totals.lastDataPayloadPath,
+        file.lastDataPayloadAt,
+        file.lastDataPayloadPath,
+        'lastDataPayloadAt',
+        'lastDataPayloadPath',
+      ),
+      lastDataPayloadEventType:
+        file.lastDataPayloadAt && (!totals.lastDataPayloadAt || file.lastDataPayloadAt > totals.lastDataPayloadAt)
+          ? file.lastDataPayloadEventType
+          : totals.lastDataPayloadEventType,
       firstEventAt: earlierTimestamp(totals.firstEventAt, file.firstEventAt),
       ...latestTimestampFields(
         totals.lastEventAt,
@@ -338,6 +377,10 @@ function buildTotals(fileSummaries) {
       liquidationEvents: 0,
       providerStatusEvents: 0,
       dataPayloadEvents: 0,
+      firstDataPayloadAt: '',
+      lastDataPayloadAt: '',
+      lastDataPayloadPath: '',
+      lastDataPayloadEventType: '',
       firstEventAt: '',
       lastEventAt: '',
       lastEventPath: '',
@@ -376,6 +419,7 @@ function parseHeartbeatMetric(message, key) {
 function buildCaptureHealth(report) {
   const latestStatusFile = report.files.find((file) => file.path === report.totals.lastProviderStatusPath) || null
   const heartbeat = latestStatusFile?.lastCaptureHeartbeat || null
+  const lastDataPayloadAgeMinutes = minutesSince(report.totals.lastDataPayloadAt, report.generatedAt)
   const reasons = []
 
   if (report.screen.status !== 'running') {
@@ -386,6 +430,11 @@ function buildCaptureHealth(report) {
   }
   if (latestStatusFile && latestStatusFile.dataPayloadEvents === 0) {
     reasons.push('latest_status_file_has_no_data_payload')
+  }
+  if (!report.totals.lastDataPayloadAt) {
+    reasons.push('missing_data_payload')
+  } else if (lastDataPayloadAgeMinutes > report.staleDataPayloadMinutes) {
+    reasons.push('data_payload_stale')
   }
   if (heartbeat?.receivedMessages !== null && heartbeat?.receivedMessages <= 1) {
     reasons.push('heartbeat_received_messages_not_increasing')
@@ -399,12 +448,10 @@ function buildCaptureHealth(report) {
     status = 'not_running'
   } else if (!report.totals.lastProviderStatusAt) {
     status = 'no_heartbeat'
-  } else if (
-    latestStatusFile &&
-    latestStatusFile.dataPayloadEvents === 0 &&
-    heartbeat?.writtenEvents === 0
-  ) {
+  } else if (!report.totals.lastDataPayloadAt) {
     status = 'connected_no_payload'
+  } else if (lastDataPayloadAgeMinutes > report.staleDataPayloadMinutes) {
+    status = 'market_payload_stale'
   } else if ((report.totals.btcLiquidationEvents || 0) === 0) {
     status = 'connected_no_btc_liquidation'
   } else {
@@ -427,7 +474,26 @@ function buildCaptureHealth(report) {
         }
       : null,
     reasons,
+    lastDataPayload: {
+      at: report.totals.lastDataPayloadAt || '',
+      ageMinutes: lastDataPayloadAgeMinutes,
+      path: report.totals.lastDataPayloadPath || '',
+      eventType: report.totals.lastDataPayloadEventType || '',
+      staleAfterMinutes: report.staleDataPayloadMinutes,
+    },
   }
+}
+
+function minutesSince(timestamp, nowTimestamp) {
+  if (!timestamp) {
+    return null
+  }
+  const timestampMs = new Date(timestamp).getTime()
+  const nowMs = new Date(nowTimestamp).getTime()
+  if (!Number.isFinite(timestampMs) || !Number.isFinite(nowMs)) {
+    return null
+  }
+  return Math.round(((nowMs - timestampMs) / 60_000) * 10) / 10
 }
 
 function incrementLiquidationDirection(summary, direction) {
@@ -486,6 +552,16 @@ function printSummary(report) {
   console.log(`Data payload events: ${report.totals.dataPayloadEvents}`)
   console.log(`Capture health: ${report.captureHealth.status}`)
   console.log(`Capture health reasons: ${report.captureHealth.reasons.join(', ') || 'none'}`)
+  console.log(`Last data payload at: ${report.totals.lastDataPayloadAt || 'n/a'}`)
+  console.log(
+    `Last data payload age: ${
+      report.captureHealth.lastDataPayload.ageMinutes === null
+        ? 'n/a'
+        : `${report.captureHealth.lastDataPayload.ageMinutes}m`
+    }`,
+  )
+  console.log(`Last data payload type: ${report.totals.lastDataPayloadEventType || 'n/a'}`)
+  console.log(`Last data payload file: ${report.totals.lastDataPayloadPath || 'n/a'}`)
   if (report.captureHealth.latestStatusFile?.lastCaptureHeartbeat) {
     const heartbeat = report.captureHealth.latestStatusFile.lastCaptureHeartbeat
     console.log(
@@ -510,6 +586,8 @@ Options:
   --data-dir=<path>  Raw JSONL data directory. Default: crypto-workspace/data/raw.
   --report=<path>    Output status report path.
   --screen=<name>    Screen session name. Default: wyckoff_liq_capture_24h.
+  --stale-data-payload-min=<minutes>
+                     Mark market payload stale after this many minutes. Default: ${DEFAULT_STALE_DATA_PAYLOAD_MINUTES}.
 `)
 }
 
