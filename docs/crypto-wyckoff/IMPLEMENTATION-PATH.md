@@ -51,6 +51,7 @@
 - Phase C evidence 内的 funding 拥挤度上下文和 anchor 前后盘口 1m / 3m 分桶
 - Phase C review index 与规则评分报告
 - capture status / daily check 已区分 screen 心跳健康与真实 payload 健康；长时间只有 heartbeat、没有 provider payload 时会标记为 `connected_no_payload`
+- 3 个固定 Phase C replay fixture：`short_squeeze_only`、`breakdown_risk` 和 `insufficient_evidence`
 
 待实现：
 
@@ -58,6 +59,7 @@
 - 更正式的结构支撑 / 阻力识别与人工标注索引
 - spot CVD / perp CVD 阈值校准和跨样本复核
 - replay 样本库扩充和人工复核索引
+- capture health 按 provider / screen 精确切分，避免全局最新 provider status 掩盖 OKX/Binance 分源有效数据
 
 最小采集对象：
 
@@ -209,9 +211,10 @@ npm run crypto:replay -- --start=2026-05-07T14:30:00Z --end=2026-05-07T14:40:00Z
 
 回放报告会输出 instrument 覆盖、延迟摘要和 `evidence.minimumPhaseCReady`。其中 `minimumPhaseCReady` 只表示窗口内同时存在 `book_delta` 和 `liquidation` 两类 BTC 证据；它不是 Spring 信号。当前 capture 已支持 BTC spot/perp trade 流，作为后续 CVD 的原始输入；`crypto:rest-capture` 已支持 OI / Funding 快照落盘。真正进入 Phase C 洗盘过滤器前，还需要拿到真实 BTC liquidation 样本，并把这些窗口做成可复核 fixture。
 
-当前已固定两个 replay fixture：
+当前已固定三个 replay fixture：
 
 - `okx-btc-liquidation-2026-05-09T12-14Z`：包含 trade、book_delta、OI、Funding 和 1 条 BTC liquidation，用于后续 Phase C evidence 聚合。
+- `okx-btc-long-liquidation-2026-05-17T14-07Z`：包含 OKX BTC long liquidation cluster、trade、book_delta、OI 和 Funding；结构有收回，但 CVD、盘口恢复和 OI 去杠杆不确认，固定为 `breakdown_risk` 负样本。
 - `okx-btc-no-liquidation-2026-05-09T12-33Z`：包含 trade、book_delta、OI 和 Funding，但无 BTC liquidation，用作对照窗口。
 
 Phase C evidence 聚合入口已经可用：
@@ -250,7 +253,7 @@ npm run crypto:phase-c:verify
 
 `crypto-workspace/reviews/phase-c-review-index.json` 记录固定人工标签、复核理由和机器可读因子。生成的 review report 会输出规则评分、待复核 / 已复核计数、系统标签与复核标签的一致性。规则评分现在也纳入 funding 拥挤度和 post-3m 盘口 ask depth retreat / imbalance improvement 组件，作为后续阈值校准证据。这个流程用于把人工复核沉淀为可编码规则，不是逐笔交易审批。
 
-`crypto:phase-c:check` 会按顺序运行 evidence、classification、review 和 verify，避免 classification 读取旧 evidence report。`crypto:phase-c:verify` 会读取最新 classification / review / candidate reports，检查固定 short-squeeze 对照窗口和 insufficient-evidence 对照窗口的标签没有意外变化，并确认 review disagreement 仍为 0。候选扫描中的 long / short liquidation 数量只作为状态打印，不作为失败条件，避免未来抓到正样本时误报失败。
+`crypto:phase-c:check` 会按顺序运行 evidence、classification、review 和 verify，避免 classification 读取旧 evidence report。`crypto:phase-c:verify` 会读取最新 classification / review / candidate reports，检查固定 short-squeeze、breakdown-risk 和 insufficient-evidence 对照窗口的标签没有意外变化，并确认 review disagreement 仍为 0。候选扫描中的 long / short liquidation 数量只作为状态打印，不作为失败条件，避免未来抓到正样本时误报失败。
 
 Phase C 候选窗口扫描入口已经可用：
 
@@ -258,15 +261,16 @@ Phase C 候选窗口扫描入口已经可用：
 npm run crypto:phase-c:candidates
 ```
 
-它会扫描本地 raw JSONL，找出 BTC liquidation 事件，围绕清算时间生成候选窗口，检查 trade / book_delta / OI / Funding / liquidation 覆盖，并输出 fixture draft。当前本地 raw 数据扫描结果是 38,501 条 BTC 事件、1 条 BTC liquidation、0 个 long liquidation 候选和 1 个 short liquidation 对照窗口。这意味着当前最大瓶颈仍是缺少 `long liquidation + 价格收回 + 盘口恢复` 的正样本。
+它会扫描本地 raw JSONL，找出 BTC liquidation 事件，围绕清算时间生成候选窗口，检查 trade / book_delta / OI / Funding / liquidation 覆盖，并输出 fixture draft。2026-05-17 审计时，本地 raw 数据扫描结果是 71,108 条 BTC events、8 条 BTC liquidation、7 个 long liquidation candidates、1 个 short liquidation candidate 和 8 个 full sensor ready candidates。当前最大瓶颈已经从“完全没有 long liquidation”变成“尚未捕获同时满足 CVD、盘口恢复和 OI 去杠杆的 Spring 正样本”。
 
 当前低门槛历史数据验证顺序：
 
-1. 用 Bybit `allLiquidation.BTCUSDT` 增加免费实时 BTC liquidation 采集源；当前阻塞点是本机 DNS / 网络权限。
-2. 继续用 Binance Vision 补 BTCUSDT spot / USDT-M futures trade 和 1m kline 历史上下文。
-3. 暂不推进 OKX Historical Data 的手工下载 / 手工导入。
-4. 暂不推进 CoinGlass 真实 API 下载；`crypto:history:coinglass` 仅作为未来有 key / 预算时的 dry-run 和导入入口。
-5. 如果免费实时采集仍长期没有 long liquidation 样本，再评估可程序化免费源、CryptoHFTData 小窗口，或 Tardis.dev / Kaiko 级别的付费主源。
+1. 保留 Bybit `allLiquidation.BTCUSDT` 作为免费实时 BTC liquidation 补充源，但不能把 Bybit 心跳存活等同于有效 payload。
+2. 继续使用 OKX / Binance 实时采集补 liquidation、trade、book、OI 和 Funding 上下文，并把可复核窗口固化进 fixture / review index。
+3. 继续用 Binance Vision 补 BTCUSDT spot / USDT-M futures trade 和 1m kline 历史上下文。
+4. 暂不推进 OKX Historical Data 的手工下载 / 手工导入。
+5. 暂不推进 CoinGlass 真实 API 下载；`crypto:history:coinglass` 仅作为未来有 key / 预算时的 dry-run 和导入入口。
+6. 如果免费实时采集仍长期没有 Spring 正样本，再评估可程序化免费源、CryptoHFTData 小窗口，或 Tardis.dev / Kaiko 级别的付费主源。
 
 免费历史源探测入口已经可用：
 
@@ -302,10 +306,10 @@ Bybit 实时 liquidation 补充入口：
 npm run crypto:ws-probe -- --provider=bybit
 npm run crypto:capture -- --provider=bybit --duration-sec=86400 --event-type=liquidation
 npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_24h
-npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_24h_heartbeat
+npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_7d_heartbeat
 screen -dmS wyckoff_bybit_liq_capture_7d_heartbeat npm run crypto:capture -- --provider=bybit --duration-sec=604800 --event-type=liquidation
 npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_7d_heartbeat
 npm run crypto:daily-check
 ```
 
-Bybit `allLiquidation.BTCUSDT` 是 liquidation-only 源：它能提高免费实时 BTC 清算样本命中率，但不能替代 Binance / OKX 的 trade、book、OI、Funding 上下文。心跳版 24h screen 使用 `wyckoff_bybit_liq_capture_24h_heartbeat`；日常监控优先使用 7d screen `wyckoff_bybit_liq_capture_7d_heartbeat`。`capture:status` 会精确匹配 screen 名称，并输出 BTC long / short liquidation 计数、provider status 计数，以及最新事件和最新 provider status 的来源文件。日常复核优先跑 `npm run crypto:daily-check`，它会同时刷新 capture status 和 Phase C candidate scan。
+Bybit `allLiquidation.BTCUSDT` 是 liquidation-only 源：它能提高免费实时 BTC 清算样本命中率，但不能替代 Binance / OKX 的 trade、book、OI、Funding 上下文。日常监控优先使用 7d screen `wyckoff_bybit_liq_capture_7d_heartbeat`。`capture:status` 会精确匹配 screen 名称，并输出 BTC long / short liquidation 计数、provider status 计数，以及最新事件和最新 provider status 的来源文件。日常复核优先跑 `npm run crypto:daily-check`，它会同时刷新 capture status 和 Phase C candidate scan。2026-05-17 审计发现：当前 capture health 仍可能被全局最新 provider status 影响，因此分源诊断时要同时看 `lastEventPath`、`lastProviderStatusPath`、`Data payload events` 和对应 screen 名。

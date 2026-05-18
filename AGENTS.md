@@ -40,7 +40,7 @@ MiniQMT / QMT 方向是独立 A 股券商适配工作面，先阅读 `docs/miniq
 - 当前默认以 soft gate 方式允许无 L2 / 逐笔环境下降级回测；真实交易时段权限验证仍未完成
 - 当前没有生产后端，也没有真实券商上游接入；仓库内已有本地 ptrade bridge / relay 联调工具
 - BTC / crypto 方向已有 `crypto-workspace/`，包含 REST / WebSocket 探测、capture、replay、fixture、Phase C evidence 和 Phase C classification 工具
-- 当前 BTC 固定 fixture 中，真实清算窗口被分类为 `short_squeeze_only`，无清算对照窗口被分类为 `insufficient_evidence`；当前还没有 `spring_candidate` 样本
+- 当前 BTC 固定 fixture 中，短清算窗口被分类为 `short_squeeze_only`，OKX 长清算但 CVD / 盘口 / OI 不确认的窗口被分类为 `breakdown_risk`，无清算对照窗口被分类为 `insufficient_evidence`；当前还没有 `spring_candidate` 样本
 - MiniQMT / QMT 方向已有 `miniqmt-workspace/` 和 `docs/miniqmt-wyckoff/`，当前只完成初始化、目标拆解、XtQuant adapter contract 和验证顺序
 - 手工验收用例已整理完毕
 
@@ -58,7 +58,8 @@ MiniQMT / QMT 方向是独立 A 股券商适配工作面，先阅读 `docs/miniq
 - `npm run crypto:phase-c:review`
 - `npm run crypto:phase-c:verify`
 - `npm run crypto:phase-c:check`
-- `npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_24h_heartbeat`
+- `npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_7d_heartbeat`
+- `npm run crypto:daily-check`
 
 ## 工作规则
 
@@ -75,10 +76,10 @@ MiniQMT / QMT 方向是独立 A 股券商适配工作面，先阅读 `docs/miniq
 ## 推荐下一步
 
 1. BTC 路线：扩充 Phase C 样本集，优先寻找 `long liquidation + 价格收回 + 盘口恢复` 的窗口。
-2. BTC 路线：当前不走 OKX 手工数据导入；CoinGlass 真实 API 因付费先跳过。优先恢复 Bybit 免费实时清算长跑采集，继续用 Binance Vision 补 trade / kline 上下文。
-3. BTC 路线：补结构支撑 / 阻力识别和正式 spot/perp CVD 判据，再做 20 个历史窗口人工复核。
-4. ptrade 路线：按 `docs/ptrade-wyckoff/TWO-LAYER-REVIEW.md` 建立至少 20 个 A 股历史结构窗口，先审查回测候选是否符合 Wyckoff 结构语义。
-5. ptrade 路线：回测结构审查后，再在模拟盘验证 `ptrade-workspace/strategy/ptrade_wyckoff_trader.py` 的订单、成交、持仓、报告和状态记忆闭环。
+2. BTC 路线：当前不走 OKX 手工数据导入；CoinGlass 真实 API 因付费先跳过。继续保留 Bybit 免费实时清算长跑作为补充源，同时用 OKX / Binance 对照采集补 trade、book、OI、Funding 和清算上下文。
+3. BTC 路线：继续扩展 `reviews/phase-c-review-index.json`，把新抓到的候选窗口沉淀为 `spring_candidate`、`breakdown_risk`、`short_squeeze_only` 或 `insufficient_evidence`，累计到 20 个历史窗口复核后再推进 Phase D。
+4. ptrade 路线：在模拟盘验证 `ptrade-workspace/strategy/ptrade_wyckoff_trader.py` 的订单、成交、持仓、报告和状态记忆闭环。
+5. ptrade 路线：在真实 ptrade 交易时段验证 L2 / 逐笔成交权限，并决定何时把 `require_l2_for_entry` / `require_trade_stream_for_entry` 切为强制闸门。
 6. ptrade 路线：在真实 ptrade 交易时段验证 L2 / 逐笔成交权限，并决定何时把 `require_l2_for_entry` / `require_trade_stream_for_entry` 切为强制闸门。
 7. MiniQMT 路线：在 Windows 侧确认 MiniQMT / QMT 客户端、XtQuant 包、userdata 路径和账号状态，优先输出标准化 `health` 事件。
 8. MiniQMT 路线：验证基础行情、L2、逐笔委托 / 成交能力，再决定是否实现录制 / 回放和模拟盘闭环。
