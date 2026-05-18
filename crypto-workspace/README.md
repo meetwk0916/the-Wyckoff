@@ -156,9 +156,11 @@ Scan raw JSONL into Phase C candidate windows:
 ```bash
 npm run crypto:phase-c:candidates
 npm run crypto:phase-c:candidates -- --before-min=10 --after-min=10
+npm run crypto:phase-c:unreviewed
 ```
 
 The candidate scan report is written to `crypto-workspace/reports/phase-c-candidates-last.json`. It finds BTC liquidation events, builds review windows around them, checks trade / book / OI / Funding / liquidation coverage, and emits fixture drafts. It does not classify Spring or approve trades.
+The unreviewed report is written to `crypto-workspace/reports/phase-c-unreviewed-candidates-last.json`. It matches candidate windows against reviewed fixtures by time-window overlap, so repeated liquidation events in the same reviewed cluster do not create duplicate review work.
 
 Replay a local JSONL window:
 

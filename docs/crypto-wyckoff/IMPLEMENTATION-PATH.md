@@ -259,9 +259,11 @@ Phase C 候选窗口扫描入口已经可用：
 
 ```bash
 npm run crypto:phase-c:candidates
+npm run crypto:phase-c:unreviewed
 ```
 
 它会扫描本地 raw JSONL，找出 BTC liquidation 事件，围绕清算时间生成候选窗口，检查 trade / book_delta / OI / Funding / liquidation 覆盖，并输出 fixture draft。2026-05-17 审计时，本地 raw 数据扫描结果是 71,108 条 BTC events、8 条 BTC liquidation、7 个 long liquidation candidates、1 个 short liquidation candidate 和 8 个 full sensor ready candidates。当前最大瓶颈已经从“完全没有 long liquidation”变成“尚未捕获同时满足 CVD、盘口恢复和 OI 去杠杆的 Spring 正样本”。
+`crypto:phase-c:unreviewed` 会把 candidate scan 与 `config/replay-fixtures.json`、`reviews/phase-c-review-index.json` 对齐，按时间窗口重叠判断哪些候选已经被 fixture/review 覆盖，避免同一 liquidation cluster 被重复审查。
 
 当前低门槛历史数据验证顺序：
 

@@ -25,6 +25,7 @@
     "crypto:phase-c:verify": "node crypto-workspace/src/runPhaseCVerify.mjs",
     "crypto:phase-c:check": "npm run crypto:phase-c:evidence && npm run crypto:phase-c:classify && npm run crypto:phase-c:review && npm run crypto:phase-c:verify",
     "crypto:phase-c:candidates": "node crypto-workspace/src/runPhaseCCandidateScan.mjs",
+    "crypto:phase-c:unreviewed": "node crypto-workspace/src/runPhaseCUnreviewedCandidates.mjs",
     "crypto:history:free-sources": "node crypto-workspace/src/runFreeHistoricalSourceProbe.mjs",
     "crypto:history:binance-vision": "node crypto-workspace/src/runBinanceVisionImport.mjs",
     "crypto:history:coinglass": "node crypto-workspace/src/runCoinGlassLiquidationImport.mjs"
