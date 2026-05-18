@@ -23,11 +23,13 @@
 
 ## 当前阶段状态
 
-截至 2026-05-07：
+截至 2026-05-14：
 
 - 已完成 canonical 脚本的一轮真实参数回测，当前已经验证 JSON 报告、pickle 状态记忆、试仓升级、runner 重锚和关键风控主路径可运行。
+- 已补 `on_order_response` / `on_trade_response` 主推事件记录，日终报告会保留主推事件、轮询订单 / 成交 / 持仓，以及账户级巡检摘要。
+- 已补 `get_all_orders` / `get_all_positions` 账户级巡检；报告会标记疑似非本策略委托、非策略持仓、可撤账户委托和 `cancel_order_ex` 可用性，但不会自动撤销非本策略委托。
 - 当前默认把 L2 / 逐笔成交缺失视为可降级输入，而不是硬闸门；这不阻塞 Phase 1 回测，但会直接影响 Spring 真伪、UTAD 假突破和后续自动化交易前的微观确认质量。
-- 当前下一阶段主线是：模拟盘闭环 -> 真实交易时段 L2 / 逐笔权限验证 -> `cancel_order` 超时撤单 / 次日对账 -> 再推进带审批与风控闸门的自动化交易。
+- 当前下一阶段主线已拆成两层审查：先用回测审查结构候选是否符合 Wyckoff，再用模拟盘现场验证主推 / 轮询 / 账户级巡检是否对齐；之后再做真实交易时段 L2 / 逐笔权限验证、`cancel_order` 超时撤单后的重报价 / 次日对账，以及带审批与风控闸门的自动化交易评估。
 
 当前已知环境补充：
 
@@ -48,11 +50,15 @@
 当前策略优先使用这些接口：
 
 - `order(security, amount, limit_price=None)`
+- `on_order_response(context, order_list)`
+- `on_trade_response(context, trade_list)`
 - `get_open_orders(security=None)`
 - `get_orders(security=None)`
+- `get_all_orders(security=None)`
 - `get_trades()`
 - `get_position(security)`
 - `get_positions(security=None)`
+- `get_all_positions()`
 
 说明：
 
@@ -73,6 +79,8 @@
 - 当日成交
 - 当前持仓
 - 策略状态记忆
+- 主推委托 / 成交事件缓存
+- 账户级订单 / 持仓巡检、疑似非本策略委托、非策略持仓和可撤账户委托
 
 默认输出文件：
 
@@ -94,7 +102,9 @@ g.require_trade_stream_for_entry = False
 g.max_position_ratio = 0.25
 g.scale_position_cap_to_universe = True
 g.enable_open_order_recovery = True
+g.enable_account_level_audit = True
 g.open_order_timeout_bars = 3
+g.max_execution_event_buffer = 200
 g.stop_loss_pct = 0.03
 g.trend_stop_loss_pct = 0.06
 g.utad_close_position_threshold = 0.75
@@ -125,6 +135,8 @@ g.utad_min_volume_ratio = 1.00
 - `g.require_trade_stream_for_entry = False`：默认不让逐笔成交缺失阻塞回测入场，真实环境确认权限后可改成 `True`。
 - `g.enable_open_order_recovery = True`：默认允许对连续多个决策周期仍未消失的 open orders 进入恢复流程，而不是无限期 `blocked`。
 - `g.open_order_timeout_bars = 3`：同一批 open orders 连续出现多少个 `handle_data()` 周期后，策略开始尝试调用 `cancel_order()`；这是当前版本对“挂单超时”的最小近似语义。
+- `g.enable_account_level_audit = True`：默认在日终报告中调用 `get_all_orders()` / `get_all_positions()` 做账户级巡检。若当前环境只支持回测接口，报告会记录函数不可用而不是中断策略。
+- `g.max_execution_event_buffer = 200`：主推事件缓存上限，避免模拟盘长时间运行后报告无限膨胀。
 
 ## 回测步骤
 
@@ -135,6 +147,8 @@ g.utad_min_volume_ratio = 1.00
 5. 新建回测，设置开始时间、结束时间、资金规模和频率。
 6. 运行回测。
 7. 在日志里查看 `Wyckoff ptrade report => ...`。
+
+回测完成后先进入结构审查，而不是直接用收益判断策略是否成立。审查口径见 `docs/ptrade-wyckoff/TWO-LAYER-REVIEW.md`，最低要确认候选类型、结构证据、拒绝原因、失效条件和数据缺口是否可复核。
 
 回测日志里和微观确认最相关的新字段可以这样看：
 
@@ -147,6 +161,11 @@ g.utad_min_volume_ratio = 1.00
 - `pilotReady` / `formalEntryReady`：分别表示“可试仓”和“可正式执行”是否成立。
 - `positionStage` / `promotionReady`：分别表示当前持仓仍处于试仓还是已进入正式仓，以及当前试仓是否满足升级到正式仓位的条件。
 - `execution.recovery`：当同一批 open orders 连续出现时，报告会记录 `seenBars`、`timeoutBars` 和撤单尝试结果，用来区分“继续观察中的挂单”和“已进入恢复流程的挂单”。
+- `orderResponseEvents` / `tradeResponseEvents`：模拟盘交易模块收到的委托 / 成交主推事件缓存，用来和轮询结果交叉核对。
+- `accountAudit.allOrders` / `accountAudit.allPositions`：账户级当日委托和全部持仓巡检结果；回测环境不可用时会记录 `function_unavailable`。
+- `accountAudit.unmatchedAccountOrders`：未能匹配到本策略已知 `orderId` / `entrustNo` 的账户委托，优先用于识别手工单、其他策略单或启动前残留委托。
+- `accountAudit.cancelableAccountOrders`：按 ptrade 常见状态码 `2` / `7` 标记的可撤账户委托。当前版本只报告，不自动调用 `cancel_order_ex()` 撤销非本策略委托。
+- `executionReconciliation`：主推事件数量、已知订单标识、未匹配账户委托数量和非策略持仓数量摘要。
 
 建议第一轮优先使用：
 
@@ -161,6 +180,10 @@ g.utad_min_volume_ratio = 1.00
 4. 启动交易。
 5. 在交易日志里查看下单、成交和报告输出。
 6. 到 `/home/fly/notebook/ptrade-wyckoff-trade-report-last.json` 检查日终结果。
+7. 对照 `orderResponseEvents`、`tradeResponseEvents`、`orders`、`trades`、`positions`、`accountAudit` 和 `executionReconciliation`，确认主推、轮询、账户级巡检、策略状态记忆是否一致。
+8. 把日终报告复制到本地后运行 `npm run ptrade:paper-report:check -- --report=<report-path>`，用本地核对脚本先筛掉字段缺失和计数不一致。
+
+完整验收清单见 `docs/ptrade-wyckoff/PAPER-TRADE-ACCEPTANCE.md`。模拟盘审查应作为第二层执行审查，晚于回测结构审查。
 
 ## 当前信号逻辑的定位
 
@@ -191,6 +214,8 @@ g.utad_min_volume_ratio = 1.00
 - runner 在退化为非执行型结构且趋势不再成立时退出，避免长时间回吐已兑现利润
 - 成本止损或结构止损触发时再执行离场；其中 `full` 趋势仓位在趋势未破坏前会使用更宽的 `g.trend_stop_loss_pct`。
 - 当同一批 open orders 连续多个决策周期仍未消失时，执行层会先记录 `executionRecovery` 状态；达到 `g.open_order_timeout_bars` 后，会优先尝试 `cancel_order()`，本周期不再继续提交新单，避免在模拟盘里永久卡死在 `open_orders_present`。
+- 主推回调只记录委托 / 成交事件并更新已知订单标识，不在回调里继续调用下单接口，避免主推内递归触发新委托。
+- 账户级巡检会报告 `cancel_order_ex` 是否可用以及哪些账户委托处于常见可撤状态；考虑到该接口可能撤销其他交易产生的委托，当前版本不会自动对疑似非本策略委托调用它。
 
 试仓开关当前也保留为参数：
 
@@ -224,10 +249,11 @@ g.utad_min_volume_ratio = 1.00
 
 ## 推荐的下一步增强
 
-1. 用同一份 canonical 脚本在 ptrade 模拟盘验证订单、成交、持仓、报告和状态记忆闭环。
-2. 在真实 ptrade 交易时段验证 `get_snapshot()`、逐笔成交接口和 L2 权限。
-3. 在权限确认后，把 `g.require_l2_for_entry` 和 `g.require_trade_stream_for_entry` 切到 `True` 做严格微观确认回测。
-4. 继续细化 Spring / LPS / BUEC 的触发条件，引入更真实的 cause count、次级测试和失败结构识别。
-5. 增加 `cancel_order()` 超时撤单与重新报价逻辑。
-6. 增加次日对账逻辑，结合 `get_deliver()` 与 `get_fundjour()` 做报告校验。
-7. 在上述能力都稳定后，再把 ptrade 推进到带审批、风控和恢复策略的自动化交易阶段。
+1. 按 `docs/ptrade-wyckoff/TWO-LAYER-REVIEW.md` 建立 20 个 A 股历史结构窗口，先审查回测候选是否符合 Wyckoff。
+2. 把候选、证据、拒绝原因、失效条件和数据缺口沉淀为可复核输出。
+3. 用同一份 canonical 脚本在 ptrade 模拟盘验证主推事件、轮询结果、账户级巡检、订单、成交、持仓、报告和状态记忆闭环。
+4. 在真实 ptrade 交易时段验证 `get_snapshot()`、逐笔成交接口和 L2 权限。
+5. 在权限确认后，把 `g.require_l2_for_entry` 和 `g.require_trade_stream_for_entry` 切到 `True` 做严格微观确认回测。
+6. 增加 `cancel_order()` 超时撤单后的重新报价逻辑。
+7. 增加次日对账逻辑，结合 `get_deliver()` 与 `get_fundjour()` 做报告校验。
+8. 在上述能力都稳定后，再把 ptrade 推进到带审批、风控和恢复策略的自动化交易阶段。
