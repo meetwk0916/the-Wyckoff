@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "reviewSet": "btc_phase_c_seed_reviews",
-  "updatedAt": "2026-05-17T14:12:04.000Z",
+  "updatedAt": "2026-05-18T13:59:34.246Z",
   "labels": [
     "confirmed_spring",
     "failed_spring",
@@ -29,6 +29,23 @@
         "perpCvdBias": "supply",
         "bookRecovery": true,
         "fullSensorReady": true
+      }
+    },
+    {
+      "id": "okx-btc-short-liquidation-2026-05-18T13-54Z",
+      "reviewStatus": "reviewed",
+      "humanLabel": "short_squeeze_only",
+      "reviewer": "codex",
+      "reviewedAt": "2026-05-18T13:59:34.246Z",
+      "rationale": "Short-liquidation window has a large OKX BTC short liquidation and spot demand against perp selling, but both spot and perp support are broken without reclaim, post-3m book recovery is not confirmed, and OI/Funding context is missing. Keep it as a short-squeeze / non-Spring control sample.",
+      "machineReadableFactors": {
+        "supportRecovered": false,
+        "liquidationDirection": "short",
+        "spotCvdBias": "demand",
+        "perpCvdBias": "supply",
+        "bookRecovery": false,
+        "openInterestDeleveraging": false,
+        "fullSensorReady": false
       }
     },
     {

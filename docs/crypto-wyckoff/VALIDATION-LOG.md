@@ -1,5 +1,34 @@
 # BTC 数据源验证记录
 
+## 2026-05-18 OKX short liquidation 对照样本固化
+
+背景：
+
+- 重启 OKX / Binance / Bybit 长跑采集后，`crypto:daily-check` 从 8 个 BTC liquidation candidates 增加到 9 个。
+- 新增候选为 OKX BTC short liquidation，窗口中心 `2026-05-18T13:54:34.246Z`，raw size 950.73。
+- 该窗口有 trade、book_delta 和 liquidation，但缺 open_interest / funding_rate，所以不是 full sensor 样本。
+
+验证命令：
+
+```bash
+npm run crypto:phase-c:evidence -- --start=2026-05-18T13:49:34.246Z --end=2026-05-18T13:59:34.246Z --provider=all --report=crypto-workspace/reports/phase-c-evidence-okx-short-2026-05-18T1354Z.json
+npm run crypto:phase-c:classify -- --evidence=crypto-workspace/reports/phase-c-evidence-okx-short-2026-05-18T1354Z.json --report=crypto-workspace/reports/phase-c-classification-okx-short-2026-05-18T1354Z.json
+```
+
+结果：
+
+- 分类结果：`short_squeeze_only`，confidence `medium`。
+- 主要原因：`short_liquidation_dominates`。
+- 结构上下文：spot / perp support 都被跌破且未收回，`phaseCStructureSupport=false`。
+- CVD 上下文：spot demand、perp supply，属于现货吸收对永续卖压，但不足以覆盖 short liquidation 方向和结构未收回。
+- 盘口：post-3m ask depth retreat 与 imbalance improvement 均未确认。
+- 衍生品上下文：缺 OI / Funding，因此 `fullSensorReady=false`。
+
+结论：
+
+- 已固化为 `okx-btc-short-liquidation-2026-05-18T13-54Z` fixture，并在 review index 标记为 `short_squeeze_only`。
+- 该样本用于强化“空头挤压 / short liquidation 不等于 Spring”的防误判守门。
+
 ## 2026-05-18 market payload 停滞检测
 
 背景：
