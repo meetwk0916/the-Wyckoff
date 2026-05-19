@@ -17,4 +17,9 @@ crypto-workspace/reports/phase-c-classification-last.json
 crypto-workspace/reports/phase-c-review-last.json
 crypto-workspace/reports/phase-c-candidates-last.json
 crypto-workspace/reports/phase-c-unreviewed-candidates-last.json
+crypto-workspace/reports/phase-c-review-next-last.json
+crypto-workspace/reports/phase-c-review-next-fixture.json
+crypto-workspace/reports/phase-c-review-next-evidence.json
+crypto-workspace/reports/phase-c-review-next-classification.json
+crypto-workspace/reports/rest-snapshot-loop-last.json
 ```

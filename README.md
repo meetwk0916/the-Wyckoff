@@ -197,9 +197,11 @@ PTRADE_MODE=upstream PTRADE_UPSTREAM_URL=http://<broker-reachable-ip-or-host>:19
 - `npm run crypto:phase-c:verify`：检查固定 Phase C 对照样本标签和 review agreement
 - `npm run crypto:phase-c:check`：按 evidence → classify → review → verify 顺序运行完整 Phase C 守门链路
 - `npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_7d_heartbeat`：监控心跳版 Bybit liquidation 长跑采集
-- `npm run crypto:daily-check`：每日汇总 Bybit 7d 长跑 screen、最新心跳、最新真实 market payload、BTC long / short liquidation 和 Phase C candidate 状态；当 `market_payload_stale` 出现时，说明 screen / heartbeat 仍活着但真实行情 payload 已停滞
-- `npm run crypto:phase-c:candidates`：扫描 Phase C 候选窗口
+- `npm run crypto:daily-check`：每日汇总 Bybit 7d 长跑 screen、最新心跳、最新真实 market payload、分源 health、BTC long / short liquidation 和 Phase C candidate 状态；当 `market_payload_stale` 出现时，说明 screen / heartbeat 仍活着但真实行情 payload 已停滞
+- `npm run crypto:phase-c:candidates`：扫描 Phase C 候选窗口，默认把重叠 liquidation 归并成 cluster
 - `npm run crypto:phase-c:unreviewed`：对比 candidate scan、fixture 和 review index，列出尚未固化复核的 Phase C 候选
+- `npm run crypto:phase-c:review-next`：取第一个 unreviewed candidate 生成临时 evidence / classification 和建议标签
+- `npm run crypto:rest-snapshot-loop`：按间隔持续抓取 REST OI / Funding 快照，适合放进 screen 长跑
 - `npm run crypto:history:free-sources`：探测免费历史数据源可用性
 - `npm run crypto:history:binance-vision`：导入 Binance Vision 历史 trade / kline 数据
 - `npm run crypto:history:coinglass`：导入 CoinGlass 历史清算数据，当前真实 API 需要付费权限

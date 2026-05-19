@@ -34,7 +34,10 @@ async function main() {
 
   events.sort(compareEvents)
   const liquidationEvents = events.filter((event) => event.eventType === 'liquidation')
-  const candidates = liquidationEvents.map((event) => buildCandidate(event, events, options))
+  const liquidationClusters = options.cluster
+    ? buildLiquidationClusters(liquidationEvents, options)
+    : liquidationEvents.map((event) => buildSingleEventCluster(event, options))
+  const candidates = liquidationClusters.map((cluster) => buildCandidate(cluster, events, options))
   const report = {
     reportType: 'crypto_phase_c_candidate_scan',
     schemaVersion: 1,
@@ -45,8 +48,9 @@ async function main() {
       provider: options.provider,
       beforeMinutes: options.beforeMinutes,
       afterMinutes: options.afterMinutes,
+      cluster: options.cluster,
     },
-    totals: buildTotals(totals, candidates),
+    totals: buildTotals(totals, liquidationClusters, candidates),
     candidates,
     fixtureDrafts: candidates.map((candidate) => candidate.fixtureDraft),
     notes: [
@@ -68,6 +72,7 @@ function parseArgs(args) {
     provider: 'all',
     beforeMinutes: 5,
     afterMinutes: 5,
+    cluster: true,
   }
 
   for (const arg of args) {
@@ -83,6 +88,8 @@ function parseArgs(args) {
       options.beforeMinutes = Number(arg.slice('--before-min='.length))
     } else if (arg.startsWith('--after-min=')) {
       options.afterMinutes = Number(arg.slice('--after-min='.length))
+    } else if (arg === '--no-cluster') {
+      options.cluster = false
     } else if (arg === '--help' || arg === '-h') {
       printHelp()
       process.exit(0)
@@ -186,27 +193,108 @@ async function scanJsonlFile(filePath, options, events, totals) {
   }
 }
 
-function buildCandidate(liquidationEvent, events, options) {
-  const center = new Date(liquidationEvent.eventTime)
-  const start = new Date(center.getTime() - options.beforeMinutes * 60 * 1000)
-  const end = new Date(center.getTime() + options.afterMinutes * 60 * 1000)
+function buildLiquidationClusters(liquidationEvents, options) {
+  const clusters = []
+
+  for (const event of liquidationEvents) {
+    const eventTime = new Date(event.eventTime)
+    const direction = classifyLiquidationDirection(event)
+    const start = new Date(eventTime.getTime() - options.beforeMinutes * 60 * 1000)
+    const end = new Date(eventTime.getTime() + options.afterMinutes * 60 * 1000)
+    const lastCluster = clusters.at(-1)
+
+    if (
+      lastCluster &&
+      lastCluster.provider === event.provider &&
+      lastCluster.direction === direction &&
+      start <= lastCluster.end
+    ) {
+      lastCluster.events.push(event)
+      if (end > lastCluster.end) {
+        lastCluster.end = end
+      }
+      if (eventTime < lastCluster.firstEventAt) {
+        lastCluster.firstEventAt = eventTime
+      }
+      if (eventTime > lastCluster.lastEventAt) {
+        lastCluster.lastEventAt = eventTime
+      }
+      continue
+    }
+
+    clusters.push({
+      provider: event.provider,
+      direction,
+      events: [event],
+      firstEventAt: eventTime,
+      lastEventAt: eventTime,
+      start,
+      end,
+    })
+  }
+
+  return clusters.map((cluster) => ({
+    ...cluster,
+    anchor: pickClusterAnchor(cluster.events),
+    center: midpointDate(cluster.firstEventAt, cluster.lastEventAt),
+  }))
+}
+
+function buildSingleEventCluster(event, options) {
+  const eventTime = new Date(event.eventTime)
+  return {
+    provider: event.provider,
+    direction: classifyLiquidationDirection(event),
+    events: [event],
+    firstEventAt: eventTime,
+    lastEventAt: eventTime,
+    start: new Date(eventTime.getTime() - options.beforeMinutes * 60 * 1000),
+    end: new Date(eventTime.getTime() + options.afterMinutes * 60 * 1000),
+    anchor: event,
+    center: eventTime,
+  }
+}
+
+function pickClusterAnchor(events) {
+  return [...events].sort((left, right) => liquidationMagnitude(right) - liquidationMagnitude(left))[0]
+}
+
+function liquidationMagnitude(event) {
+  const details = extractLiquidationDetails(event)
+  return sumLiquidationDetails(details, (detail) => detail.rawSize || 0)
+}
+
+function midpointDate(start, end) {
+  return new Date(start.getTime() + (end.getTime() - start.getTime()) / 2)
+}
+
+function buildCandidate(cluster, events, options) {
+  const center = cluster.center
+  const start = cluster.start
+  const end = cluster.end
   const windowEvents = events.filter((event) => {
     const eventTime = new Date(event.eventTime)
     return eventTime >= start && eventTime <= end
   })
   const byEventType = countBy(windowEvents, (event) => event.eventType || 'unknown')
   const byProvider = countBy(windowEvents, (event) => event.provider || 'unknown')
-  const direction = classifyLiquidationDirection(liquidationEvent)
+  const direction = cluster.direction
   const missingPhaseCInputs = phaseCInputs.filter((eventType) => !byEventType[eventType])
   const missingFullSensorInputs = fullSensorInputs.filter((eventType) => !byEventType[eventType])
-  const fixtureId = buildFixtureId(liquidationEvent, center)
+  const fixtureId = buildFixtureId(cluster, center)
 
   return {
     id: fixtureId,
     center: center.toISOString(),
-    provider: liquidationEvent.provider,
+    provider: cluster.provider,
     symbol: options.symbol,
-    liquidation: summarizeLiquidation(liquidationEvent, direction),
+    liquidation: summarizeLiquidation(cluster, direction),
+    cluster: {
+      events: cluster.events.length,
+      firstEventAt: cluster.firstEventAt.toISOString(),
+      lastEventAt: cluster.lastEventAt.toISOString(),
+      anchorEventAt: cluster.anchor.eventTime,
+    },
     window: {
       start: start.toISOString(),
       end: end.toISOString(),
@@ -224,7 +312,7 @@ function buildCandidate(liquidationEvent, events, options) {
     priority: rankCandidate(direction, missingPhaseCInputs, missingFullSensorInputs),
     fixtureDraft: {
       id: fixtureId,
-      description: buildFixtureDescription(direction, liquidationEvent),
+      description: buildFixtureDescription(direction, cluster),
       provider: 'all',
       symbol: options.symbol,
       eventType: 'all',
@@ -240,11 +328,12 @@ function buildCandidate(liquidationEvent, events, options) {
   }
 }
 
-function summarizeLiquidation(event, direction) {
-  const details = extractLiquidationDetails(event)
+function summarizeLiquidation(cluster, direction) {
+  const details = cluster.events.flatMap((event) => extractLiquidationDetails(event))
 
   return {
     direction,
+    clusterEvents: cluster.events.length,
     details: details.length,
     buyRawSize: sumLiquidationDetails(details, (detail) => (detail.side === 'buy' ? detail.rawSize : 0)),
     sellRawSize: sumLiquidationDetails(details, (detail) => (detail.side === 'sell' ? detail.rawSize : 0)),
@@ -266,19 +355,22 @@ function rankCandidate(direction, missingPhaseCInputs, missingFullSensorInputs) 
   return 'needs_more_context'
 }
 
-function buildFixtureId(event, center) {
-  const provider = event.provider || 'unknown'
+function buildFixtureId(cluster, center) {
+  const provider = cluster.provider || 'unknown'
   const timestamp = center.toISOString().slice(0, 16).replace(/[-:]/g, '').replace('T', 'T')
-  return `${provider}-btc-liquidation-${timestamp}Z`
+  return `${provider}-btc-liquidation-cluster-${timestamp}Z`
 }
 
-function buildFixtureDescription(direction, event) {
-  return `${event.provider || 'Unknown'} BTC ${direction} liquidation candidate window for Phase C review.`
+function buildFixtureDescription(direction, cluster) {
+  return `${cluster.provider || 'Unknown'} BTC ${direction} liquidation cluster with ${
+    cluster.events.length
+  } event(s) for Phase C review.`
 }
 
-function buildTotals(totals, candidates) {
+function buildTotals(totals, liquidationClusters, candidates) {
   return {
     ...totals,
+    liquidationClusters: liquidationClusters.length,
     candidates: candidates.length,
     longLiquidationCandidates: candidates.filter((candidate) => candidate.liquidation.direction === 'long').length,
     shortLiquidationCandidates: candidates.filter((candidate) => candidate.liquidation.direction === 'short').length,
@@ -351,6 +443,7 @@ function printSummary(report, reportPath) {
   console.log(`Phase C candidate scan report written to ${reportPath}`)
   console.log(`BTC events: ${report.totals.btcEvents}`)
   console.log(`BTC liquidation events: ${report.totals.btcLiquidationEvents}`)
+  console.log(`Liquidation clusters: ${report.totals.liquidationClusters}`)
   console.log(`Candidates: ${report.totals.candidates}`)
   console.log(`Long liquidation candidates: ${report.totals.longLiquidationCandidates}`)
   console.log(`Short liquidation candidates: ${report.totals.shortLiquidationCandidates}`)
@@ -367,6 +460,7 @@ Options:
   --provider=<name>    Provider filter. Default: all.
   --before-min=<num>   Minutes before each liquidation event. Default: 5.
   --after-min=<num>    Minutes after each liquidation event. Default: 5.
+  --no-cluster         Emit one candidate per liquidation event instead of default overlapping-window clusters.
 `)
 }
 

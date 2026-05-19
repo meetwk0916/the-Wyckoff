@@ -13,6 +13,50 @@ const defaultDataDir = resolve(workspaceDir, 'data/raw')
 const defaultReportPath = resolve(workspaceDir, 'reports/capture-status-last.json')
 const DEFAULT_SCREEN_NAME = 'wyckoff_liq_capture_24h'
 const DEFAULT_STALE_DATA_PAYLOAD_MINUTES = 15
+const monitoredSources = [
+  {
+    key: 'okx_trade',
+    label: 'OKX trade',
+    provider: 'okx',
+    eventTypes: ['trade'],
+    screenIncludes: ['okx_trade'],
+    noPayloadStatus: 'connected_no_payload',
+  },
+  {
+    key: 'okx_book',
+    label: 'OKX book',
+    provider: 'okx',
+    eventTypes: ['book_delta', 'book_snapshot'],
+    screenIncludes: ['okx_book'],
+    noPayloadStatus: 'connected_no_payload',
+  },
+  {
+    key: 'okx_liquidation',
+    label: 'OKX liquidation',
+    provider: 'okx',
+    eventTypes: ['liquidation'],
+    screenIncludes: ['okx_liq', 'okx_liquidation'],
+    noPayloadStatus: 'connected_no_sample',
+  },
+  {
+    key: 'binance_force_order',
+    label: 'Binance forceOrder',
+    provider: 'binance',
+    eventTypes: ['liquidation'],
+    streams: ['perp_force_order'],
+    screenIncludes: ['binance_liq', 'binance_force'],
+    noPayloadStatus: 'connected_no_sample',
+  },
+  {
+    key: 'bybit_liquidation',
+    label: 'Bybit liquidation',
+    provider: 'bybit',
+    eventTypes: ['liquidation'],
+    streams: ['linear_all_liquidation'],
+    screenIncludes: ['bybit_liq', 'bybit_liquidation'],
+    noPayloadStatus: 'connected_no_payload',
+  },
+]
 
 async function main() {
   const options = parseArgs(process.argv.slice(2))
@@ -34,6 +78,7 @@ async function main() {
     files: fileSummaries,
   }
   report.captureHealth = buildCaptureHealth(report)
+  report.sourceHealth = buildSourceHealth(report, monitoredSources)
 
   await mkdir(dirname(options.reportPath), { recursive: true })
   await writeFile(options.reportPath, `${JSON.stringify(report, null, 2)}\n`)
@@ -178,6 +223,7 @@ async function summarizeJsonlFile(filePath) {
     lastProviderStatusAt: '',
     lastProviderStatusPath: '',
     symbols: {},
+    sources: {},
     liquidationDirections: {
       long: 0,
       short: 0,
@@ -261,6 +307,8 @@ async function summarizeJsonlFile(filePath) {
         const direction = classifyLiquidationDirection(event)
         incrementLiquidationDirection(summary, direction)
       }
+
+      updateSourceSummaries(summary.sources, event, filePath)
     } catch {
       summary.parseErrors += 1
     }
@@ -484,6 +532,240 @@ function buildCaptureHealth(report) {
   }
 }
 
+function updateSourceSummaries(sources, event, filePath) {
+  const key = buildSourceKey(event)
+  if (!key) {
+    return
+  }
+
+  const source = (sources[key] ||= {
+    key,
+    provider: event.provider || 'unknown',
+    stream: event.stream || '',
+    eventType: event.eventType === 'provider_status' ? inferStatusEventType(event) : event.eventType || '',
+    events: 0,
+    dataPayloadEvents: 0,
+    providerStatusEvents: 0,
+    providerStatuses: {},
+    firstDataPayloadAt: '',
+    lastDataPayloadAt: '',
+    lastDataPayloadPath: '',
+    lastProviderStatusAt: '',
+    lastProviderStatusPath: '',
+    lastProviderStatus: '',
+    lastErrorAt: '',
+    lastError: '',
+  })
+
+  source.events += 1
+
+  if (event.eventType === 'provider_status') {
+    source.providerStatusEvents += 1
+    const status = event.payload?.status || 'unknown'
+    const statusAt = event.receivedAt || event.eventTime || ''
+    source.providerStatuses[status] = (source.providerStatuses[status] || 0) + 1
+    if (statusAt >= (source.lastProviderStatusAt || '')) {
+      source.lastProviderStatusAt = statusAt
+      source.lastProviderStatusPath = filePath
+      source.lastProviderStatus = status
+    }
+    if (status === 'capture_error' && statusAt >= (source.lastErrorAt || '')) {
+      source.lastErrorAt = statusAt
+      source.lastError = event.payload?.message || 'capture_error'
+    }
+    return
+  }
+
+  source.dataPayloadEvents += 1
+  const dataAt = event.receivedAt || event.eventTime || ''
+  if (!source.firstDataPayloadAt) {
+    source.firstDataPayloadAt = dataAt
+  }
+  if (dataAt >= (source.lastDataPayloadAt || '')) {
+    source.lastDataPayloadAt = dataAt
+    source.lastDataPayloadPath = filePath
+  }
+}
+
+function buildSourceKey(event) {
+  const provider = event.provider || 'unknown'
+  const stream = event.stream || ''
+  const eventType = event.eventType === 'provider_status' ? inferStatusEventType(event) : event.eventType || ''
+
+  if (stream) {
+    return `${provider}:${stream}:${eventType}`
+  }
+  if (event.payload?.endpoint) {
+    return `${provider}:${event.payload.endpoint}:${eventType || 'provider_status'}`
+  }
+  return `${provider}:${eventType}`
+}
+
+function inferStatusEventType(event) {
+  const stream = event.stream || ''
+  const endpoint = event.payload?.endpoint || ''
+  const name = stream || endpoint
+
+  if (name.includes('trade')) {
+    return 'trade'
+  }
+  if (name.includes('book') || name.includes('depth')) {
+    return 'book_delta'
+  }
+  if (name.includes('liq') || name.includes('liquidation') || name.includes('force_order')) {
+    return 'liquidation'
+  }
+  if (name.includes('open_interest')) {
+    return 'open_interest'
+  }
+  if (name.includes('funding')) {
+    return 'funding_rate'
+  }
+  return ''
+}
+
+function buildSourceHealth(report, definitions) {
+  const generatedAt = report.generatedAt
+  const sourceRows = flattenSourceSummaries(report.files || [])
+
+  return definitions.map((definition) => {
+    const rows = sourceRows.filter((source) => matchesSourceDefinition(source, definition))
+    const screen = findSourceScreen(report.screen?.sessions || [], definition)
+    const aggregate = aggregateSourceRows(rows)
+    const dataAgeMinutes = minutesSince(aggregate.lastDataPayloadAt, generatedAt)
+    const statusAgeMinutes = minutesSince(aggregate.lastProviderStatusAt, generatedAt)
+    const status = classifySourceHealth(definition, screen, aggregate, dataAgeMinutes, report.staleDataPayloadMinutes)
+
+    return {
+      key: definition.key,
+      label: definition.label,
+      provider: definition.provider,
+      eventTypes: definition.eventTypes,
+      streams: definition.streams || [],
+      screen,
+      status,
+      dataPayloadEvents: aggregate.dataPayloadEvents,
+      providerStatusEvents: aggregate.providerStatusEvents,
+      providerStatuses: aggregate.providerStatuses,
+      lastDataPayloadAt: aggregate.lastDataPayloadAt,
+      lastDataPayloadAgeMinutes: dataAgeMinutes,
+      lastDataPayloadPath: aggregate.lastDataPayloadPath,
+      lastProviderStatusAt: aggregate.lastProviderStatusAt,
+      lastProviderStatusAgeMinutes: statusAgeMinutes,
+      lastProviderStatus: aggregate.lastProviderStatus,
+      lastProviderStatusPath: aggregate.lastProviderStatusPath,
+      lastErrorAt: aggregate.lastErrorAt,
+      lastError: aggregate.lastError,
+      staleAfterMinutes: report.staleDataPayloadMinutes,
+    }
+  })
+}
+
+function flattenSourceSummaries(files) {
+  return files.flatMap((file) =>
+    Object.values(file.sources || {}).map((source) => ({
+      ...source,
+      filePath: file.path,
+    })),
+  )
+}
+
+function matchesSourceDefinition(source, definition) {
+  if (source.provider !== definition.provider) {
+    return false
+  }
+  if (definition.streams?.length > 0) {
+    return definition.streams.includes(source.stream)
+  }
+  return definition.eventTypes.includes(source.eventType)
+}
+
+function findSourceScreen(sessions, definition) {
+  const matched = sessions.find((session) =>
+    definition.screenIncludes.some((needle) => session.name.toLowerCase().includes(needle)),
+  )
+
+  return matched
+    ? {
+        status: 'running',
+        session: matched,
+      }
+    : {
+        status: 'not_found',
+        session: null,
+      }
+}
+
+function aggregateSourceRows(rows) {
+  return rows.reduce(
+    (aggregate, row) => ({
+      dataPayloadEvents: aggregate.dataPayloadEvents + row.dataPayloadEvents,
+      providerStatusEvents: aggregate.providerStatusEvents + row.providerStatusEvents,
+      providerStatuses: mergeCounts(aggregate.providerStatuses, row.providerStatuses),
+      firstDataPayloadAt: earlierTimestamp(aggregate.firstDataPayloadAt, row.firstDataPayloadAt),
+      ...latestTimestampFields(
+        aggregate.lastDataPayloadAt,
+        aggregate.lastDataPayloadPath,
+        row.lastDataPayloadAt,
+        row.lastDataPayloadPath,
+        'lastDataPayloadAt',
+        'lastDataPayloadPath',
+      ),
+      ...latestTimestampFields(
+        aggregate.lastProviderStatusAt,
+        aggregate.lastProviderStatusPath,
+        row.lastProviderStatusAt,
+        row.lastProviderStatusPath,
+        'lastProviderStatusAt',
+        'lastProviderStatusPath',
+      ),
+      lastProviderStatus:
+        row.lastProviderStatusAt && (!aggregate.lastProviderStatusAt || row.lastProviderStatusAt > aggregate.lastProviderStatusAt)
+          ? row.lastProviderStatus
+          : aggregate.lastProviderStatus,
+      lastErrorAt: laterTimestamp(aggregate.lastErrorAt, row.lastErrorAt),
+      lastError: row.lastErrorAt && (!aggregate.lastErrorAt || row.lastErrorAt > aggregate.lastErrorAt) ? row.lastError : aggregate.lastError,
+    }),
+    {
+      dataPayloadEvents: 0,
+      providerStatusEvents: 0,
+      providerStatuses: {},
+      firstDataPayloadAt: '',
+      lastDataPayloadAt: '',
+      lastDataPayloadPath: '',
+      lastProviderStatusAt: '',
+      lastProviderStatusPath: '',
+      lastProviderStatus: '',
+      lastErrorAt: '',
+      lastError: '',
+    },
+  )
+}
+
+function mergeCounts(left, right) {
+  const merged = { ...left }
+  for (const [key, value] of Object.entries(right || {})) {
+    merged[key] = (merged[key] || 0) + value
+  }
+  return merged
+}
+
+function classifySourceHealth(definition, screen, aggregate, dataAgeMinutes, staleAfterMinutes) {
+  if (screen.status !== 'running') {
+    return 'not_running'
+  }
+  if (aggregate.lastProviderStatus === 'capture_error' && aggregate.lastErrorAt >= (aggregate.lastDataPayloadAt || '')) {
+    return 'error'
+  }
+  if (!aggregate.lastDataPayloadAt) {
+    return aggregate.providerStatusEvents > 0 ? definition.noPayloadStatus : 'no_status'
+  }
+  if (dataAgeMinutes !== null && dataAgeMinutes > staleAfterMinutes) {
+    return 'stale'
+  }
+  return 'fresh'
+}
+
 function minutesSince(timestamp, nowTimestamp) {
   if (!timestamp) {
     return null
@@ -552,6 +834,16 @@ function printSummary(report) {
   console.log(`Data payload events: ${report.totals.dataPayloadEvents}`)
   console.log(`Capture health: ${report.captureHealth.status}`)
   console.log(`Capture health reasons: ${report.captureHealth.reasons.join(', ') || 'none'}`)
+  if (report.sourceHealth?.length > 0) {
+    console.log('Source health:')
+    for (const source of report.sourceHealth) {
+      console.log(
+        `- ${source.label}: ${source.status}; lastData=${
+          source.lastDataPayloadAgeMinutes === null ? 'n/a' : `${source.lastDataPayloadAgeMinutes}m`
+        }; statuses=${source.providerStatusEvents}; data=${source.dataPayloadEvents}`,
+      )
+    }
+  }
   console.log(`Last data payload at: ${report.totals.lastDataPayloadAt || 'n/a'}`)
   console.log(
     `Last data payload age: ${
