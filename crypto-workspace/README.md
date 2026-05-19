@@ -150,7 +150,7 @@ For daily monitoring, prefer the 7d session name `wyckoff_bybit_liq_capture_7d_h
 `crypto:daily-check` defaults to that 7d session, runs capture status and Phase C candidate scan together, writes `reports/daily-capture-check-last.json`, and prints the daily fields to inspect: screen status, latest provider heartbeat, latest market payload, BTC long / short liquidation counts, candidate counts, and parse errors.
 The status report separates connection health from usable market payload health. A running screen with no market payload is reported as `connected_no_payload`; a running screen with fresh heartbeat but stale market payload is reported as `market_payload_stale`. `crypto:daily-check` marks those as `capture_connected_no_payload` or `market_payload_stale` so a live-but-stale stream is not mistaken for a valid data source.
 As of 2026-05-18, capture health includes `lastDataPayloadAt`, `lastDataPayloadAgeMinutes`, `lastDataPayloadPath`, and `lastDataPayloadEventType`. The default stale threshold is 15 minutes and can be changed with `--stale-data-payload-min=<minutes>`.
-`crypto:daily-check` also prints a source health table for OKX trade, OKX book, OKX liquidation, Binance forceOrder, and Bybit liquidation. This keeps a stale liquidation-only stream from being hidden by fresh trade / book payloads from another screen.
+`crypto:daily-check` also prints a source health table for OKX trade, OKX book, OKX liquidation, Binance forceOrder, Bybit liquidation, Binance OI / Funding, and OKX OI / Funding. This keeps a stale liquidation-only stream from being hidden by fresh trade / book or REST derivatives payloads from another screen.
 
 Run an OI / Funding REST snapshot loop:
 

@@ -56,6 +56,38 @@ const monitoredSources = [
     screenIncludes: ['bybit_liq', 'bybit_liquidation'],
     noPayloadStatus: 'connected_no_payload',
   },
+  {
+    key: 'binance_open_interest',
+    label: 'Binance OI',
+    provider: 'binance',
+    eventTypes: ['open_interest'],
+    screenIncludes: ['derivatives_state_snapshot'],
+    noPayloadStatus: 'connected_no_payload',
+  },
+  {
+    key: 'binance_funding',
+    label: 'Binance Funding',
+    provider: 'binance',
+    eventTypes: ['funding_rate'],
+    screenIncludes: ['derivatives_state_snapshot'],
+    noPayloadStatus: 'connected_no_payload',
+  },
+  {
+    key: 'okx_open_interest',
+    label: 'OKX OI',
+    provider: 'okx',
+    eventTypes: ['open_interest'],
+    screenIncludes: ['derivatives_state_snapshot'],
+    noPayloadStatus: 'connected_no_payload',
+  },
+  {
+    key: 'okx_funding',
+    label: 'OKX Funding',
+    provider: 'okx',
+    eventTypes: ['funding_rate'],
+    screenIncludes: ['derivatives_state_snapshot'],
+    noPayloadStatus: 'connected_no_payload',
+  },
 ]
 
 async function main() {

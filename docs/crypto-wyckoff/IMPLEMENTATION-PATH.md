@@ -267,7 +267,7 @@ npm run crypto:rest-snapshot-loop -- --provider=all --interval-sec=300 --duratio
 它会扫描本地 raw JSONL，找出 BTC liquidation 事件，默认把同 provider / 同方向且时间窗重叠的清算事件合并成 cluster，再围绕 cluster 生成候选窗口，检查 trade / book_delta / OI / Funding / liquidation 覆盖，并输出 fixture draft。当前最大瓶颈已经从“完全没有 long liquidation”变成“尚未捕获同时满足 CVD、盘口恢复和 OI 去杠杆的 Spring 正样本”。
 `crypto:phase-c:unreviewed` 会把 candidate scan 与 `config/replay-fixtures.json`、`reviews/phase-c-review-index.json` 对齐，按时间窗口重叠判断哪些候选已经被 fixture/review 覆盖，避免同一 liquidation cluster 被重复审查。
 `crypto:phase-c:review-next` 会取最高优先级 unreviewed candidate，生成临时单窗口 fixture，运行 evidence + classification，并输出建议标签和理由；它只辅助人工确认是否纳入 fixture / review index，不产生交易动作。
-`crypto:daily-check` 现在输出 OKX trade、OKX book、OKX liquidation、Binance forceOrder 和 Bybit liquidation 的分源 health，避免全局 payload fresh 掩盖某个关键 liquidation 源 stale / no sample。
+`crypto:daily-check` 现在输出 OKX trade、OKX book、OKX liquidation、Binance forceOrder、Bybit liquidation、Binance OI / Funding 和 OKX OI / Funding 的分源 health，避免全局 payload fresh 掩盖某个关键 liquidation 或 derivatives 源 stale / no sample。
 `crypto:rest-snapshot-loop` 用于每 1-5 分钟持续抓取 OI / Funding REST 快照，补齐 liquidation 窗口的 derivatives context。若当前网络或代理不可达，失败会以 status event / loop report 显示，不能视为已补齐 full sensor；本机代理不可用时可加 `--ignore-proxy`。
 
 当前低门槛历史数据验证顺序：
