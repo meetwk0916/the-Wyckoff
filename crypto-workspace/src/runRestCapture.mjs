@@ -65,6 +65,7 @@ function parseArgs(args) {
     configPath: defaultConfigPath,
     dataDir: defaultDataDir,
     reportPath: defaultReportPath,
+    ignoreProxy: false,
   }
 
   for (const arg of args) {
@@ -80,6 +81,8 @@ function parseArgs(args) {
       options.dataDir = resolve(arg.slice('--data-dir='.length))
     } else if (arg.startsWith('--report=')) {
       options.reportPath = resolve(arg.slice('--report='.length))
+    } else if (arg === '--ignore-proxy') {
+      options.ignoreProxy = true
     } else if (arg === '--help' || arg === '-h') {
       printHelp()
       process.exit(0)
@@ -109,7 +112,7 @@ async function captureEndpoint(providerPlan, endpoint, options, startedAt) {
   await mkdir(dirname(outputPath), { recursive: true })
 
   try {
-    const response = hasProxyEnv() ? await curlJson(endpoint.url) : await fetchJson(endpoint.url)
+    const response = hasProxyEnv(options) ? await curlJson(endpoint.url) : await fetchJson(endpoint.url)
     const receivedAt = new Date()
     const event = buildCaptureEvent(providerPlan, endpoint, response.payload, receivedAt)
 
@@ -277,7 +280,10 @@ function buildOutputPath(dataDir, provider, endpoint, startedAt) {
   return resolve(dataDir, provider, datePart, `${endpoint.name}-${timestampPart}.jsonl`)
 }
 
-function hasProxyEnv() {
+function hasProxyEnv(options = {}) {
+  if (options.ignoreProxy) {
+    return false
+  }
   return Boolean(process.env.https_proxy || process.env.HTTPS_PROXY || process.env.http_proxy || process.env.HTTP_PROXY)
 }
 
@@ -291,6 +297,7 @@ Options:
   --config=<path>          Market config path.
   --data-dir=<path>        Output data directory.
   --report=<path>          Output summary report path.
+  --ignore-proxy           Use Node fetch directly even when proxy env vars are present.
 `)
 }
 

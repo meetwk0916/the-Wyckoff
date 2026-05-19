@@ -16,6 +16,21 @@
       }
     },
     {
+      "id": "okx-btc-short-liquidation-2026-05-18T13-54Z",
+      "description": "OKX BTC short liquidation control window with spot demand against perp selling but no support reclaim or derivatives context.",
+      "provider": "all",
+      "symbol": "BTC",
+      "eventType": "all",
+      "start": "2026-05-18T13:49:34.246Z",
+      "end": "2026-05-18T13:59:34.246Z",
+      "limit": 200,
+      "expected": {
+        "minimumPhaseCReady": true,
+        "fullSensorReady": false,
+        "requiredEventTypes": ["trade", "book_delta", "liquidation"]
+      }
+    },
+    {
       "id": "okx-btc-long-liquidation-2026-05-17T14-07Z",
       "description": "OKX BTC long liquidation cluster with structure reclaim but broad supply CVD and no confirmed book or OI recovery.",
       "provider": "all",

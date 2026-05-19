@@ -9,6 +9,7 @@ const defaultCandidatePath = resolve(workspaceDir, 'reports/phase-c-candidates-l
 
 const expectedClassifications = {
   'okx-btc-liquidation-2026-05-09T12-14Z': 'short_squeeze_only',
+  'okx-btc-short-liquidation-2026-05-18T13-54Z': 'short_squeeze_only',
   'okx-btc-long-liquidation-2026-05-17T14-07Z': 'breakdown_risk',
   'okx-btc-no-liquidation-2026-05-09T12-33Z': 'insufficient_evidence',
 }

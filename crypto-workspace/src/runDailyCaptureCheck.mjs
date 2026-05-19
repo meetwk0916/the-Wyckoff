@@ -143,6 +143,7 @@ function buildDailyReport(statusReport, candidateReport, options) {
       lastProviderStatusAgeMinutes,
       parseErrors: totals.parseErrors || 0,
     },
+    sourceHealth: statusReport.sourceHealth || [],
     candidates: {
       btcLiquidationEvents: candidateTotals.btcLiquidationEvents || 0,
       total: candidateTotals.candidates || 0,
@@ -216,6 +217,18 @@ function printSummary(report) {
     }`,
   )
   console.log(`Last data payload type: ${report.capture.lastDataPayloadEventType || 'n/a'}`)
+  if (report.sourceHealth.length > 0) {
+    console.log('Source health:')
+    for (const source of report.sourceHealth) {
+      console.log(
+        `- ${source.label}: ${source.status}; lastData=${
+          source.lastDataPayloadAgeMinutes === null ? 'n/a' : `${source.lastDataPayloadAgeMinutes}m`
+        }; screen=${source.screen?.status || 'unknown'}; data=${source.dataPayloadEvents}; statuses=${
+          source.providerStatusEvents
+        }`,
+      )
+    }
+  }
   console.log(`BTC events: ${report.capture.btcEvents}`)
   console.log(`BTC liquidation events: ${report.capture.btcLiquidationEvents}`)
   console.log(`BTC long liquidation events: ${report.capture.btcLongLiquidationEvents}`)

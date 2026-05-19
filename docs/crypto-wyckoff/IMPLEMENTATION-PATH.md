@@ -186,7 +186,7 @@
 
 ## 当前下一步
 
-截至 2026-05-11，REST / WebSocket 探测、落盘、replay、fixture、Phase C evidence、启发式结构上下文、窗口级 CVD、保守分类、review index、规则评分和候选窗口扫描入口已经可用。当前下一步不再是继续做基础 probe，而是扩充可复核样本和结构 / CVD 复核：
+截至 2026-05-19，REST / WebSocket 探测、落盘、replay、fixture、Phase C evidence、启发式结构上下文、窗口级 CVD、保守分类、review index、规则评分、候选 cluster 扫描、unreviewed / review-next 辅助审查、分源 health 和 REST OI / Funding snapshot loop 已经可用。当前下一步不再是继续做基础 probe，而是扩充可复核样本和结构 / CVD / OI 复核：
 
 1. 扩充 Phase C 样本集，优先寻找 `long liquidation + 价格收回 + 盘口恢复` 的 BTC 窗口。
 2. 把 Bybit `allLiquidation.BTCUSDT` 长跑视为补充源而非充分源；若 `daily-check` 标记 `connected_no_payload`，并行恢复 Binance `forceOrder` / OKX `liquidation-orders` 对照采集。
@@ -259,9 +259,16 @@ Phase C 候选窗口扫描入口已经可用：
 
 ```bash
 npm run crypto:phase-c:candidates
+npm run crypto:phase-c:unreviewed
+npm run crypto:phase-c:review-next
+npm run crypto:rest-snapshot-loop -- --provider=all --interval-sec=300 --duration-hours=72
 ```
 
-它会扫描本地 raw JSONL，找出 BTC liquidation 事件，围绕清算时间生成候选窗口，检查 trade / book_delta / OI / Funding / liquidation 覆盖，并输出 fixture draft。2026-05-17 审计时，本地 raw 数据扫描结果是 71,108 条 BTC events、8 条 BTC liquidation、7 个 long liquidation candidates、1 个 short liquidation candidate 和 8 个 full sensor ready candidates。当前最大瓶颈已经从“完全没有 long liquidation”变成“尚未捕获同时满足 CVD、盘口恢复和 OI 去杠杆的 Spring 正样本”。
+它会扫描本地 raw JSONL，找出 BTC liquidation 事件，默认把同 provider / 同方向且时间窗重叠的清算事件合并成 cluster，再围绕 cluster 生成候选窗口，检查 trade / book_delta / OI / Funding / liquidation 覆盖，并输出 fixture draft。当前最大瓶颈已经从“完全没有 long liquidation”变成“尚未捕获同时满足 CVD、盘口恢复和 OI 去杠杆的 Spring 正样本”。
+`crypto:phase-c:unreviewed` 会把 candidate scan 与 `config/replay-fixtures.json`、`reviews/phase-c-review-index.json` 对齐，按时间窗口重叠判断哪些候选已经被 fixture/review 覆盖，避免同一 liquidation cluster 被重复审查。
+`crypto:phase-c:review-next` 会取最高优先级 unreviewed candidate，生成临时单窗口 fixture，运行 evidence + classification，并输出建议标签和理由；它只辅助人工确认是否纳入 fixture / review index，不产生交易动作。
+`crypto:daily-check` 现在输出 OKX trade、OKX book、OKX liquidation、Binance forceOrder 和 Bybit liquidation 的分源 health，避免全局 payload fresh 掩盖某个关键 liquidation 源 stale / no sample。
+`crypto:rest-snapshot-loop` 用于每 1-5 分钟持续抓取 OI / Funding REST 快照，补齐 liquidation 窗口的 derivatives context。若当前网络或代理不可达，失败会以 status event / loop report 显示，不能视为已补齐 full sensor；本机代理不可用时可加 `--ignore-proxy`。
 
 当前低门槛历史数据验证顺序：
 
