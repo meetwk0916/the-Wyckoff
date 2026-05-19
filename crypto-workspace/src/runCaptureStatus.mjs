@@ -793,6 +793,9 @@ function classifySourceHealth(definition, screen, aggregate, dataAgeMinutes, sta
     return aggregate.providerStatusEvents > 0 ? definition.noPayloadStatus : 'no_status'
   }
   if (dataAgeMinutes !== null && dataAgeMinutes > staleAfterMinutes) {
+    if (definition.noPayloadStatus === 'connected_no_sample' && aggregate.lastProviderStatusAt) {
+      return definition.noPayloadStatus
+    }
     return 'stale'
   }
   return 'fresh'

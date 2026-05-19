@@ -21,5 +21,6 @@ crypto-workspace/reports/phase-c-review-next-last.json
 crypto-workspace/reports/phase-c-review-next-fixture.json
 crypto-workspace/reports/phase-c-review-next-evidence.json
 crypto-workspace/reports/phase-c-review-next-classification.json
+crypto-workspace/reports/phase-c-watch-last.json
 crypto-workspace/reports/rest-snapshot-loop-last.json
 ```
