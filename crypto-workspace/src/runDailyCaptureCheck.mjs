@@ -96,6 +96,7 @@ function buildDailyReport(statusReport, candidateReport, options) {
     candidateTotals,
     lastProviderStatusAgeMinutes,
     captureHealth,
+    statusReport.sourceHealth || [],
   )
   const lastDataPayload = captureHealth.lastDataPayload || {
     at: totals.lastDataPayloadAt || '',
@@ -155,8 +156,9 @@ function buildDailyReport(statusReport, candidateReport, options) {
   }
 }
 
-function buildAttention(screen, totals, candidateTotals, heartbeatAgeMinutes, captureHealth = {}) {
+function buildAttention(screen, totals, candidateTotals, heartbeatAgeMinutes, captureHealth = {}, sourceHealth = []) {
   const reasons = []
+  const sourceIssues = buildSourceAttention(sourceHealth)
 
   if (screen.status !== 'running') {
     reasons.push('capture_screen_not_running')
@@ -178,12 +180,31 @@ function buildAttention(screen, totals, candidateTotals, heartbeatAgeMinutes, ca
   if ((candidateTotals.longLiquidationCandidates || 0) > 0 || (totals.btcLongLiquidationEvents || 0) > 0) {
     reasons.push('long_liquidation_candidate_available')
   }
+  for (const issue of sourceIssues) {
+    reasons.push(`source_${issue.status}:${issue.key}`)
+  }
 
   return {
     needsAttention: reasons.length > 0,
     staleHeartbeatMinutes,
+    sourceIssues,
     reasons,
   }
+}
+
+function buildSourceAttention(sourceHealth) {
+  const actionableStatuses = new Set(['error', 'not_running', 'no_status', 'stale'])
+
+  return sourceHealth
+    .filter((source) => actionableStatuses.has(source.status))
+    .map((source) => ({
+      key: source.key,
+      label: source.label,
+      status: source.status,
+      lastDataPayloadAgeMinutes: source.lastDataPayloadAgeMinutes,
+      lastProviderStatusAgeMinutes: source.lastProviderStatusAgeMinutes,
+      lastError: source.status === 'error' ? source.lastError || '' : '',
+    }))
 }
 
 function minutesSince(timestamp, nowTimestamp) {
@@ -238,6 +259,16 @@ function printSummary(report) {
   console.log(`Full sensor ready candidates: ${report.candidates.fullSensorReady}`)
   console.log(`Parse errors: ${report.capture.parseErrors}`)
   console.log(`Needs attention: ${report.attention.needsAttention}`)
+  if (report.attention.sourceIssues?.length > 0) {
+    console.log('Source attention:')
+    for (const issue of report.attention.sourceIssues) {
+      console.log(
+        `- ${issue.label}: ${issue.status}; lastData=${
+          issue.lastDataPayloadAgeMinutes === null ? 'n/a' : `${issue.lastDataPayloadAgeMinutes}m`
+        }${issue.lastError ? `; error=${issue.lastError}` : ''}`,
+      )
+    }
+  }
   console.log(`Attention reasons: ${report.attention.reasons.join(', ') || 'none'}`)
   console.log(`Daily report: ${report.reports.daily}`)
 }
