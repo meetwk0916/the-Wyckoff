@@ -172,12 +172,14 @@ npm run crypto:phase-c:candidates -- --no-cluster
 npm run crypto:phase-c:unreviewed
 npm run crypto:phase-c:review-next
 npm run crypto:phase-c:watch
+npm run crypto:phase-c:watch:export
 ```
 
 The candidate scan report is written to `crypto-workspace/reports/phase-c-candidates-last.json`. It finds BTC liquidation events, defaults to merging overlapping same-provider / same-direction events into clusters, builds review windows around those clusters, checks trade / book / OI / Funding / liquidation coverage, and emits fixture drafts. Use `--no-cluster` only when debugging raw event-level duplication. It does not classify Spring or approve trades.
 The unreviewed report is written to `crypto-workspace/reports/phase-c-unreviewed-candidates-last.json`. It matches candidate windows against reviewed fixtures by time-window overlap, so repeated liquidation events in the same reviewed cluster do not create duplicate review work.
 `crypto:phase-c:review-next` refreshes candidates and unreviewed candidates, takes the highest-priority unreviewed candidate, writes a temporary single-fixture config, runs evidence + classification, and writes `reports/phase-c-review-next-last.json` with the suggested label. This is a review assistant only; it still requires manual confirmation before adding the fixture to `config/replay-fixtures.json`.
 `crypto:phase-c:watch` is the compact daily operator view. It runs daily-check, unreviewed, and review-next, then writes `reports/phase-c-watch-last.json` with source health, candidate counts, the best long-liquidation cluster, review-next status, and a single next action.
+`crypto:phase-c:watch:export` reruns watch and writes `public/mock/crypto-phase-c-watch.json`, which powers the frontend BTC Phase C monitoring page.
 
 Replay a local JSONL window:
 

@@ -262,6 +262,7 @@ npm run crypto:phase-c:candidates
 npm run crypto:phase-c:unreviewed
 npm run crypto:phase-c:review-next
 npm run crypto:phase-c:watch
+npm run crypto:phase-c:watch:export
 npm run crypto:rest-snapshot-loop -- --provider=all --interval-sec=300 --duration-hours=72
 ```
 
@@ -269,6 +270,7 @@ npm run crypto:rest-snapshot-loop -- --provider=all --interval-sec=300 --duratio
 `crypto:phase-c:unreviewed` 会把 candidate scan 与 `config/replay-fixtures.json`、`reviews/phase-c-review-index.json` 对齐，按时间窗口重叠判断哪些候选已经被 fixture/review 覆盖，避免同一 liquidation cluster 被重复审查。
 `crypto:phase-c:review-next` 会取最高优先级 unreviewed candidate，生成临时单窗口 fixture，运行 evidence + classification，并输出建议标签和理由；它只辅助人工确认是否纳入 fixture / review index，不产生交易动作。
 `crypto:phase-c:watch` 会运行 daily-check、unreviewed 和 review-next，输出 source health、候选数量、最佳 long-liquidation cluster、review-next 状态和单条下一步建议。
+`crypto:phase-c:watch:export` 会把 watch 结果同步到 `public/mock/crypto-phase-c-watch.json`，供前端 BTC Phase C 监控页读取。
 `crypto:daily-check` 现在输出 OKX trade、OKX book、OKX liquidation、Binance forceOrder、Bybit liquidation、Binance OI / Funding 和 OKX OI / Funding 的分源 health，并把 stale / error / no_status / not_running 源提升到 `attention.sourceIssues`，避免全局 payload fresh 掩盖某个关键 liquidation 或 derivatives 源异常。
 `crypto:rest-snapshot-loop` 用于每 1-5 分钟持续抓取 OI / Funding REST 快照，补齐 liquidation 窗口的 derivatives context。若当前网络或代理不可达，失败会以 status event / loop report 显示，不能视为已补齐 full sensor；本机代理不可用时可加 `--ignore-proxy`。
 

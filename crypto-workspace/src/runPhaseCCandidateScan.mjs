@@ -179,18 +179,27 @@ async function scanJsonlFile(filePath, options, events, totals) {
       totals.btcLiquidationEvents += 1
     }
 
-    events.push({
-      provider: event.provider,
-      venue: event.venue,
-      instrumentType: event.instrumentType,
-      symbol: event.symbol,
-      providerSymbol: event.providerSymbol,
-      eventType: event.eventType,
-      eventTime: eventTime.toISOString(),
-      receivedAt: event.receivedAt || '',
-      payload: event.payload,
-    })
+    events.push(buildScannedEvent(event, eventTime))
   }
+}
+
+function buildScannedEvent(event, eventTime) {
+  const scannedEvent = {
+    provider: event.provider,
+    venue: event.venue,
+    instrumentType: event.instrumentType,
+    symbol: event.symbol,
+    providerSymbol: event.providerSymbol,
+    eventType: event.eventType,
+    eventTime: eventTime.toISOString(),
+    receivedAt: event.receivedAt || '',
+  }
+
+  if (event.eventType === 'liquidation') {
+    scannedEvent.payload = event.payload
+  }
+
+  return scannedEvent
 }
 
 function buildLiquidationClusters(liquidationEvents, options) {

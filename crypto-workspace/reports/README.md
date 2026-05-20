@@ -24,3 +24,5 @@ crypto-workspace/reports/phase-c-review-next-classification.json
 crypto-workspace/reports/phase-c-watch-last.json
 crypto-workspace/reports/rest-snapshot-loop-last.json
 ```
+
+`public/mock/crypto-phase-c-watch.json` is the committed frontend snapshot exported from `phase-c-watch-last.json`.

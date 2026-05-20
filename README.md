@@ -202,6 +202,7 @@ PTRADE_MODE=upstream PTRADE_UPSTREAM_URL=http://<broker-reachable-ip-or-host>:19
 - `npm run crypto:phase-c:unreviewed`：对比 candidate scan、fixture 和 review index，列出尚未固化复核的 Phase C 候选
 - `npm run crypto:phase-c:review-next`：取第一个 unreviewed candidate 生成临时 evidence / classification 和建议标签
 - `npm run crypto:phase-c:watch`：运行 daily-check / unreviewed / review-next 并输出紧凑 Phase C 巡检摘要
+- `npm run crypto:phase-c:watch:export`：把 Phase C 巡检摘要导出为前端 `public/mock/crypto-phase-c-watch.json`
 - `npm run crypto:rest-snapshot-loop`：按间隔持续抓取 REST OI / Funding 快照，适合放进 screen 长跑
 - `npm run crypto:history:free-sources`：探测免费历史数据源可用性
 - `npm run crypto:history:binance-vision`：导入 Binance Vision 历史 trade / kline 数据

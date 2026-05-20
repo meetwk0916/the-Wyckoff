@@ -6,6 +6,7 @@
 
 - 前端控制台行为基线。
 - ptrade Phase 1 / Phase 2 的策略回归与待执行验收。
+- BTC Phase C 监控页的 source health 和候选复核摘要。
 
 后续可以补自动化覆盖，但现在这份文档就是当前版本的行为基线。
 
@@ -24,7 +25,7 @@
 
 - Wyckoff MVP 控制台正确显示。
 - 控制台数据来自本地快照加载，而不是组件内硬编码数据。
-- 页面包含指标卡片、监控矩阵、预警流、ptrade Phase 1 联调面板和 MVP 范围说明。
+- 页面包含视图切换、指标卡片、监控矩阵、预警流、ptrade Phase 1 联调面板和 MVP 范围说明。
 
 ### TC-002 阶段过滤
 
@@ -140,9 +141,27 @@
 - `mock` 模式必须显示为联调就绪，而不是误报为真实已连接。
 - 面板可以展示当前选中标的的 L2 样例数据。
 
+### TC-010 BTC Phase C 监控页
+
+前置条件：已运行 `npm run crypto:phase-c:watch:export`，并启动前端开发服务。
+
+步骤：
+
+1. 打开控制台页面。
+2. 点击 `BTC Phase C` 视图切换按钮。
+3. 查看 source health、候选统计、最佳 long cluster 和 review-next 状态。
+
+预期：
+
+- 页面读取 `public/mock/crypto-phase-c-watch.json`，而不是硬编码 BTC 监控数据。
+- Source health 表展示 OKX / Binance / Bybit 相关数据源状态。
+- 指标卡片展示 fresh sources、quiet sources、liquidation clusters 和 source issues。
+- 右侧面板展示 next action、候选数量、best long cluster 和 review-next queue state。
+- quiet liquidation 源显示为可监控状态，不误报为故障。
+
 ## ptrade 策略回归与后续验收
 
-### TC-010 ptrade 首轮回测报告闭环
+### TC-011 ptrade 首轮回测报告闭环
 
 当前状态：已通过回测验证。
 
@@ -159,7 +178,7 @@
 - 生成 `ptrade-wyckoff-trade-report-last.json`。
 - 报告包含 `symbols`、`execution`、`strategyState`、`symbolUniverse` 等关键字段。
 
-### TC-011 flat-start 状态回收
+### TC-012 flat-start 状态回收
 
 当前状态：已通过回测验证。
 
@@ -177,7 +196,7 @@
 - flat 标的的 `positionStage` 回到 `none`，`managedTargetRatio` / `runnerTargetRatio` 回到 0。
 - 报告不会继承上一轮 full position 的旧元数据。
 
-### TC-012 试仓升级与 runner 重锚
+### TC-013 试仓升级与 runner 重锚
 
 当前状态：已通过回测验证。
 
@@ -194,7 +213,7 @@
 - 加仓后 `managedTargetRatio` 与 `runnerTargetRatio` 会一起更新，而不是停留在旧 runner 值。
 - `lastReason` 能反映 `pilot_promoted_*` 或对应的加仓原因。
 
-### TC-013 UTAD 与趋势 runner 非回归
+### TC-014 UTAD 与趋势 runner 非回归
 
 当前状态：已通过回测验证。
 
@@ -211,7 +230,7 @@
 - 趋势 runner 不会仅因 `trendReady = false` 就直接清仓；只有重新跌回旧箱体并失去趋势支撑时才退出。
 - 已知误杀场景不应重新出现。
 
-### TC-014 微观数据降级语义
+### TC-015 微观数据降级语义
 
 当前状态：已通过回测验证。
 
@@ -228,7 +247,7 @@
 - `l2Error` / `tradeStreamError` 能区分“能力不可用”和“当前无数据”。
 - 默认 soft gate 下回测仍可继续，且不会每天重复刷相同能力探测 warning。
 
-### TC-015 模拟盘订单与报告闭环
+### TC-016 模拟盘订单与报告闭环
 
 当前状态：待执行。
 
@@ -246,7 +265,7 @@
 - 报告里的订单、成交、持仓与模拟盘实际结果一致。
 - state 文件与 JSON 报告会在日终被正确更新。
 
-### TC-016 交易时段 L2 / 逐笔权限验证
+### TC-017 交易时段 L2 / 逐笔权限验证
 
 当前状态：待执行。
 
@@ -268,5 +287,5 @@
 - `npm run build` 仍然通过。
 - 标的检查面板始终与当前监控列表选择保持同步。
 - 新增过滤器或面板时，不得隐藏风险拦截信息。
-- 只要修改 `ptrade-workspace/strategy/ptrade_wyckoff_trader.py`，至少复跑 TC-010 到 TC-014。
-- 进入模拟盘和交易时段联调后，把 TC-015 与 TC-016 变成每次实质性策略改动后的必跑项。
+- 只要修改 `ptrade-workspace/strategy/ptrade_wyckoff_trader.py`，至少复跑 TC-011 到 TC-015。
+- 进入模拟盘和交易时段联调后，把 TC-016 与 TC-017 变成每次实质性策略改动后的必跑项。

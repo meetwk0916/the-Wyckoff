@@ -37,11 +37,45 @@ select {
 }
 
 .wyckoff-hero,
+.wyckoff-view-switch,
 .wyckoff-toolbar,
 .wyckoff-metric-grid,
 .wyckoff-layout {
   width: min(1240px, 100%);
   margin: 0 auto;
+}
+
+.wyckoff-view-switch {
+  display: inline-flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 6px;
+  border: 1px solid rgba(159, 179, 204, 0.16);
+  border-radius: 16px;
+  background: rgba(10, 20, 35, 0.78);
+}
+
+.wyckoff-view-switch button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 8px 12px;
+  color: #91a1b7;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.wyckoff-view-switch button.is-active {
+  color: #eff6ff;
+  border-color: rgba(108, 227, 214, 0.34);
+  background: rgba(108, 227, 214, 0.1);
+}
+
+.wyckoff-view-switch button:hover {
+  color: #eff6ff;
 }
 
 .wyckoff-hero {
@@ -228,6 +262,10 @@ select {
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
   gap: 16px;
+}
+
+.wyckoff-crypto-layout {
+  align-items: start;
 }
 
 .wyckoff-side-column {
@@ -577,7 +615,8 @@ select {
   }
 
   .wyckoff-hero,
-  .wyckoff-toolbar {
+  .wyckoff-toolbar,
+  .wyckoff-view-switch {
     flex-direction: column;
     align-items: stretch;
   }
