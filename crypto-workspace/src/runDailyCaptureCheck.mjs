@@ -21,7 +21,7 @@ async function main() {
     `--report=${options.statusReportPath}`,
     `--stale-data-payload-min=${options.staleDataPayloadMinutes}`,
   ])
-  await runScript('runPhaseCCandidateScan.mjs', [`--report=${options.candidateReportPath}`])
+  await runScript('runPhaseCCandidateScan.mjs', buildCandidateScanArgs(options))
 
   const statusReport = JSON.parse(await readFile(options.statusReportPath, 'utf8'))
   const candidateReport = JSON.parse(await readFile(options.candidateReportPath, 'utf8'))
@@ -39,6 +39,9 @@ function parseArgs(args) {
     candidateReportPath: defaultCandidateReportPath,
     reportPath: defaultReportPath,
     staleDataPayloadMinutes,
+    since: '',
+    until: '',
+    lookbackHours: null,
   }
 
   for (const arg of args) {
@@ -52,6 +55,12 @@ function parseArgs(args) {
       options.reportPath = resolve(arg.slice('--report='.length))
     } else if (arg.startsWith('--stale-data-payload-min=')) {
       options.staleDataPayloadMinutes = parsePositiveNumber(arg.slice('--stale-data-payload-min='.length))
+    } else if (arg.startsWith('--since=')) {
+      options.since = arg.slice('--since='.length)
+    } else if (arg.startsWith('--until=')) {
+      options.until = arg.slice('--until='.length)
+    } else if (arg.startsWith('--lookback-hours=')) {
+      options.lookbackHours = parsePositiveNumber(arg.slice('--lookback-hours='.length))
     } else if (arg === '--help' || arg === '-h') {
       printHelp()
       process.exit(0)
@@ -61,6 +70,20 @@ function parseArgs(args) {
   }
 
   return options
+}
+
+function buildCandidateScanArgs(options) {
+  const args = [`--report=${options.candidateReportPath}`]
+  if (options.since) {
+    args.push(`--since=${options.since}`)
+  }
+  if (options.until) {
+    args.push(`--until=${options.until}`)
+  }
+  if (options.lookbackHours !== null) {
+    args.push(`--lookback-hours=${options.lookbackHours}`)
+  }
+  return args
 }
 
 function parsePositiveNumber(value) {
@@ -115,6 +138,11 @@ function buildDailyReport(statusReport, candidateReport, options) {
       status: options.statusReportPath,
       candidates: options.candidateReportPath,
       daily: options.reportPath,
+    },
+    filters: {
+      since: options.since,
+      until: options.until,
+      lookbackHours: options.lookbackHours,
     },
     capture: {
       screenStatus: statusReport.screen?.status || 'unknown',
@@ -283,6 +311,9 @@ Options:
   --report=<path>              Daily check report path.
   --stale-data-payload-min=<minutes>
                                Mark market payload stale after this many minutes. Default: ${staleDataPayloadMinutes}.
+  --since=<timestamp>          Pass-through candidate scan lower anchor bound.
+  --until=<timestamp>          Pass-through candidate scan upper anchor bound.
+  --lookback-hours=<number>    Pass-through candidate scan lookback shortcut.
 `)
 }
 

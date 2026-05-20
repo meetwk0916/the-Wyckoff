@@ -14,7 +14,7 @@ async function main() {
   const options = parseArgs(process.argv.slice(2))
 
   if (options.refresh) {
-    await runScript('runPhaseCWatch.mjs', [`--report=${options.watchReportPath}`])
+    await runScript('runPhaseCWatch.mjs', [`--report=${options.watchReportPath}`, ...buildWatchArgs(options)])
   }
 
   const watchReport = JSON.parse(await readFile(options.watchReportPath, 'utf8'))
@@ -35,6 +35,9 @@ function parseArgs(args) {
     refresh: true,
     watchReportPath: defaultWatchReportPath,
     exportPath: defaultExportPath,
+    since: '',
+    until: '',
+    lookbackHours: null,
   }
 
   for (const arg of args) {
@@ -44,6 +47,12 @@ function parseArgs(args) {
       options.watchReportPath = resolve(arg.slice('--watch-report='.length))
     } else if (arg.startsWith('--output=')) {
       options.exportPath = resolve(arg.slice('--output='.length))
+    } else if (arg.startsWith('--since=')) {
+      options.since = arg.slice('--since='.length)
+    } else if (arg.startsWith('--until=')) {
+      options.until = arg.slice('--until='.length)
+    } else if (arg.startsWith('--lookback-hours=')) {
+      options.lookbackHours = parsePositiveNumber(arg.slice('--lookback-hours='.length))
     } else if (arg === '--help' || arg === '-h') {
       printHelp()
       process.exit(0)
@@ -53,6 +62,28 @@ function parseArgs(args) {
   }
 
   return options
+}
+
+function buildWatchArgs(options) {
+  const args = []
+  if (options.since) {
+    args.push(`--since=${options.since}`)
+  }
+  if (options.until) {
+    args.push(`--until=${options.until}`)
+  }
+  if (options.lookbackHours !== null) {
+    args.push(`--lookback-hours=${options.lookbackHours}`)
+  }
+  return args
+}
+
+function parsePositiveNumber(value) {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error(`Expected positive number, got: ${value}`)
+  }
+  return parsed
 }
 
 async function runScript(scriptName, args) {
@@ -75,6 +106,9 @@ Options:
   --no-refresh             Export the existing watch report without rerunning watch.
   --watch-report=<path>    Source watch report path.
   --output=<path>          Public mock output path.
+  --since=<timestamp>      Candidate scan lower anchor bound.
+  --until=<timestamp>      Candidate scan upper anchor bound.
+  --lookback-hours=<num>   Candidate scan lookback shortcut.
 `)
 }
 

@@ -1,5 +1,42 @@
 # BTC 数据源验证记录
 
+## 2026-05-20 Phase C 候选窗口化扫描
+
+背景：
+
+- `crypto:daily-check` / `crypto:phase-c:watch` 已恢复，但默认仍会全量扫描本地 raw JSONL。
+- raw 数据持续增长后，日常巡检需要能只看近期候选，同时保留全量扫描作为回归和审计入口。
+
+新增内容：
+
+- `crypto:phase-c:candidates` 新增 `--since`、`--until` 和 `--lookback-hours`。
+- `crypto:daily-check`、`crypto:phase-c:watch` 和 `crypto:phase-c:watch:export` 会把这些候选扫描时间窗口参数透传下去。
+- 时间窗口限定的是 liquidation 候选锚点；扫描仍会自动读取 `before-min` / `after-min` 上下文，避免候选窗口缺 trade / book / OI / Funding 覆盖统计。
+- 默认不传时间参数时仍保持全量扫描，避免改变历史回归口径。
+
+验证命令：
+
+```bash
+npm run crypto:phase-c:candidates -- --help
+npm run crypto:daily-check -- --help
+npm run crypto:phase-c:watch -- --help
+npm run crypto:phase-c:watch:export -- --help
+npm run crypto:phase-c:candidates -- --since=2026-05-20T00:00:00Z --report=crypto-workspace/reports/phase-c-candidates-window-test.json
+npm run crypto:phase-c:candidates -- --lookback-hours=24 --report=crypto-workspace/reports/phase-c-candidates-lookback-test.json
+npm run crypto:phase-c:candidates -- --since=2026-05-17T14:00:00Z --until=2026-05-17T14:20:00Z --report=crypto-workspace/reports/phase-c-candidates-known-window-test.json
+```
+
+结果：
+
+- 2026-05-20 当日窗口：BTC events 51,828，BTC liquidation events 0，candidates 0。
+- 近 24 小时窗口：BTC events 311,419，BTC liquidation events 0，candidates 0。
+- 2026-05-17 已知 OKX long liquidation 窗口：BTC events 31,756，BTC liquidation events 7，liquidation clusters 1，long liquidation candidates 1，full sensor ready candidates 1。
+
+结论：
+
+- 日常巡检可优先使用 `npm run crypto:phase-c:watch -- --lookback-hours=24` 降低扫描成本。
+- 需要复核全部历史样本或更新 guardrail 前，继续使用不带时间参数的全量扫描 / `crypto:phase-c:check`。
+
 ## 2026-05-20 BTC Phase C 监控页与日检恢复
 
 背景：

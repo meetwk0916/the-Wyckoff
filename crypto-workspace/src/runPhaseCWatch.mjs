@@ -18,6 +18,7 @@ async function main() {
   await runScript('runDailyCaptureCheck.mjs', [
     `--report=${options.dailyReportPath}`,
     `--candidates-report=${options.candidateReportPath}`,
+    ...buildCandidateScanArgs(options),
   ])
   await runScript('runPhaseCUnreviewedCandidates.mjs', [
     `--candidates=${options.candidateReportPath}`,
@@ -50,6 +51,9 @@ function parseArgs(args) {
     unreviewedReportPath: defaultUnreviewedReportPath,
     reviewNextReportPath: defaultReviewNextReportPath,
     reportPath: defaultReportPath,
+    since: '',
+    until: '',
+    lookbackHours: null,
   }
 
   for (const arg of args) {
@@ -63,6 +67,12 @@ function parseArgs(args) {
       options.reviewNextReportPath = resolve(arg.slice('--review-next-report='.length))
     } else if (arg.startsWith('--report=')) {
       options.reportPath = resolve(arg.slice('--report='.length))
+    } else if (arg.startsWith('--since=')) {
+      options.since = arg.slice('--since='.length)
+    } else if (arg.startsWith('--until=')) {
+      options.until = arg.slice('--until='.length)
+    } else if (arg.startsWith('--lookback-hours=')) {
+      options.lookbackHours = parsePositiveNumber(arg.slice('--lookback-hours='.length))
     } else if (arg === '--help' || arg === '-h') {
       printHelp()
       process.exit(0)
@@ -72,6 +82,28 @@ function parseArgs(args) {
   }
 
   return options
+}
+
+function buildCandidateScanArgs(options) {
+  const args = []
+  if (options.since) {
+    args.push(`--since=${options.since}`)
+  }
+  if (options.until) {
+    args.push(`--until=${options.until}`)
+  }
+  if (options.lookbackHours !== null) {
+    args.push(`--lookback-hours=${options.lookbackHours}`)
+  }
+  return args
+}
+
+function parsePositiveNumber(value) {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error(`Expected positive number, got: ${value}`)
+  }
+  return parsed
 }
 
 async function runScript(scriptName, args) {
@@ -109,6 +141,11 @@ function buildWatchReport(daily, candidateReport, unreviewedReport, reviewNextRe
       unreviewed: options.unreviewedReportPath,
       reviewNext: options.reviewNextReportPath,
       watch: options.reportPath,
+    },
+    filters: {
+      since: options.since,
+      until: options.until,
+      lookbackHours: options.lookbackHours,
     },
     sourceSummary,
     candidateSummary: {
@@ -235,6 +272,9 @@ Options:
   --unreviewed-report=<path>   Unreviewed report path.
   --review-next-report=<path>  Review-next report path.
   --report=<path>              Watch summary output path.
+  --since=<timestamp>          Candidate scan lower anchor bound.
+  --until=<timestamp>          Candidate scan upper anchor bound.
+  --lookback-hours=<number>    Candidate scan lookback shortcut.
 `)
 }
 

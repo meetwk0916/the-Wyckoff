@@ -17,7 +17,7 @@ const phaseCInputs = ['book_delta', 'liquidation']
 
 async function main() {
   const options = parseArgs(process.argv.slice(2))
-  const files = await listJsonlFiles(options.dataDir)
+  const files = await listJsonlFiles(options.dataDir, options)
   const events = []
   const totals = {
     filesScanned: files.length,
@@ -48,6 +48,9 @@ async function main() {
       provider: options.provider,
       beforeMinutes: options.beforeMinutes,
       afterMinutes: options.afterMinutes,
+      since: options.since,
+      until: options.until,
+      lookbackHours: options.lookbackHours,
       cluster: options.cluster,
     },
     totals: buildTotals(totals, liquidationClusters, candidates),
@@ -72,6 +75,13 @@ function parseArgs(args) {
     provider: 'all',
     beforeMinutes: 5,
     afterMinutes: 5,
+    since: '',
+    until: '',
+    sinceMs: null,
+    untilMs: null,
+    scanStartMs: null,
+    scanEndMs: null,
+    lookbackHours: null,
     cluster: true,
   }
 
@@ -88,6 +98,12 @@ function parseArgs(args) {
       options.beforeMinutes = Number(arg.slice('--before-min='.length))
     } else if (arg.startsWith('--after-min=')) {
       options.afterMinutes = Number(arg.slice('--after-min='.length))
+    } else if (arg.startsWith('--since=')) {
+      options.since = arg.slice('--since='.length)
+    } else if (arg.startsWith('--until=')) {
+      options.until = arg.slice('--until='.length)
+    } else if (arg.startsWith('--lookback-hours=')) {
+      options.lookbackHours = Number(arg.slice('--lookback-hours='.length))
     } else if (arg === '--no-cluster') {
       options.cluster = false
     } else if (arg === '--help' || arg === '-h') {
@@ -104,11 +120,40 @@ function parseArgs(args) {
   if (!Number.isFinite(options.afterMinutes) || options.afterMinutes < 0) {
     throw new Error('--after-min must be a non-negative number')
   }
+  if (options.lookbackHours !== null && (!Number.isFinite(options.lookbackHours) || options.lookbackHours <= 0)) {
+    throw new Error('--lookback-hours must be a positive number')
+  }
+
+  if (options.lookbackHours !== null) {
+    const sinceMs = Date.now() - options.lookbackHours * 60 * 60 * 1000
+    options.sinceMs = sinceMs
+    options.since = new Date(sinceMs).toISOString()
+  }
+  if (options.since) {
+    options.sinceMs = parseDateMs(options.since, '--since')
+  }
+  if (options.until) {
+    options.untilMs = parseDateMs(options.until, '--until')
+  }
+  if (options.sinceMs !== null && options.untilMs !== null && options.untilMs < options.sinceMs) {
+    throw new Error('--until must be greater than or equal to --since')
+  }
+
+  options.scanStartMs = options.sinceMs === null ? null : options.sinceMs - options.beforeMinutes * 60 * 1000
+  options.scanEndMs = options.untilMs === null ? null : options.untilMs + options.afterMinutes * 60 * 1000
 
   return options
 }
 
-async function listJsonlFiles(rootDir) {
+function parseDateMs(value, optionName) {
+  const parsed = Date.parse(value)
+  if (!Number.isFinite(parsed)) {
+    throw new Error(`${optionName} must be a valid date or timestamp`)
+  }
+  return parsed
+}
+
+async function listJsonlFiles(rootDir, options) {
   const files = []
 
   async function walk(currentDir) {
@@ -124,6 +169,9 @@ async function listJsonlFiles(rootDir) {
       const entryPath = join(currentDir, entry.name)
 
       if (entry.isDirectory()) {
+        if (!shouldWalkDirectory(entryPath, options)) {
+          continue
+        }
         await walk(entryPath)
       } else if (entry.isFile() && entry.name.endsWith('.jsonl')) {
         files.push(entryPath)
@@ -133,6 +181,36 @@ async function listJsonlFiles(rootDir) {
 
   await walk(rootDir)
   return files.sort()
+}
+
+function shouldWalkDirectory(dirPath, options) {
+  if (options.scanStartMs === null && options.scanEndMs === null) {
+    return true
+  }
+
+  const dateText = extractDateText(dirPath)
+  if (!dateText) {
+    return true
+  }
+
+  const dayStartMs = Date.parse(`${dateText}T00:00:00.000Z`)
+  const dayEndMs = Date.parse(`${dateText}T23:59:59.999Z`)
+  if (!Number.isFinite(dayStartMs) || !Number.isFinite(dayEndMs)) {
+    return true
+  }
+
+  if (options.scanStartMs !== null && dayEndMs < options.scanStartMs) {
+    return false
+  }
+  if (options.scanEndMs !== null && dayStartMs > options.scanEndMs) {
+    return false
+  }
+  return true
+}
+
+function extractDateText(pathText) {
+  const match = pathText.match(/(?:^|[/\\])(\d{4}-\d{2}-\d{2})(?:[/\\]|$)/)
+  return match?.[1] || ''
 }
 
 async function scanJsonlFile(filePath, options, events, totals) {
@@ -173,6 +251,9 @@ async function scanJsonlFile(filePath, options, events, totals) {
     if (!eventTime) {
       continue
     }
+    if (!isWithinScanRange(eventTime, options)) {
+      continue
+    }
 
     totals.btcEvents += 1
     if (event.eventType === 'liquidation') {
@@ -205,7 +286,7 @@ function buildScannedEvent(event, eventTime) {
 function buildLiquidationClusters(liquidationEvents, options) {
   const clusters = []
 
-  for (const event of liquidationEvents) {
+  for (const event of liquidationEvents.filter((item) => isCandidateAnchor(item, options))) {
     const eventTime = new Date(event.eventTime)
     const direction = classifyLiquidationDirection(event)
     const start = new Date(eventTime.getTime() - options.beforeMinutes * 60 * 1000)
@@ -247,6 +328,31 @@ function buildLiquidationClusters(liquidationEvents, options) {
     anchor: pickClusterAnchor(cluster.events),
     center: midpointDate(cluster.firstEventAt, cluster.lastEventAt),
   }))
+}
+
+function isWithinScanRange(eventTime, options) {
+  const eventMs = eventTime.getTime()
+  if (options.scanStartMs !== null && eventMs < options.scanStartMs) {
+    return false
+  }
+  if (options.scanEndMs !== null && eventMs > options.scanEndMs) {
+    return false
+  }
+  return true
+}
+
+function isCandidateAnchor(event, options) {
+  const eventMs = Date.parse(event.eventTime)
+  if (!Number.isFinite(eventMs)) {
+    return false
+  }
+  if (options.sinceMs !== null && eventMs < options.sinceMs) {
+    return false
+  }
+  if (options.untilMs !== null && eventMs > options.untilMs) {
+    return false
+  }
+  return true
 }
 
 function buildSingleEventCluster(event, options) {
@@ -469,6 +575,9 @@ Options:
   --provider=<name>    Provider filter. Default: all.
   --before-min=<num>   Minutes before each liquidation event. Default: 5.
   --after-min=<num>    Minutes after each liquidation event. Default: 5.
+  --since=<timestamp>  Only emit candidates anchored at or after this timestamp.
+  --until=<timestamp>  Only emit candidates anchored at or before this timestamp.
+  --lookback-hours=<n> Shortcut for --since=<now - n hours>.
   --no-cluster         Emit one candidate per liquidation event instead of default overlapping-window clusters.
 `)
 }
