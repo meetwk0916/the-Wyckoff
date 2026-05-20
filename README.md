@@ -41,10 +41,11 @@ ptrade 当前首要功能清单：
 - ptrade 仍是把这套策略推进到受控自动化交易阶段的主试验场，但自动化执行必须建立在撤单重试、次日对账、审批和风控闸门完成之后。
 - BTC / crypto 方向已明确第一阶段不做实盘、不做左侧抄底机器人；先验证统一数据源、标准化事件契约和 Phase C 洗盘过滤器。
 
-截至 2026-05-17，BTC / crypto 方向已经进入可回放、可复核的 Phase C 早期验证：
+截至 2026-05-20，BTC / crypto 方向已经进入可回放、可复核、可前端巡检的 Phase C 早期验证：
 
 - `crypto-workspace/` 已实现公开 REST / WebSocket 探测、JSONL 落盘、replay window、固定 fixture、Phase C evidence 聚合和保守分类。
-- 当前固定 3 个 OKX BTC replay fixture：`short_squeeze_only` 对照、`breakdown_risk` 长清算负样本、`insufficient_evidence` 无清算对照。
+- 当前固定 4 个 OKX BTC replay fixture：2 个 `short_squeeze_only` 对照、1 个 `breakdown_risk` 长清算负样本、1 个 `insufficient_evidence` 无清算对照。
+- 已新增 BTC Phase C 前端监控页，读取 `public/mock/crypto-phase-c-watch.json` 展示 source health、候选统计、best long cluster 和 review-next 状态。
 - 当前没有 `spring_candidate`；新增长清算负样本说明系统已经能挡住“long liquidation + 价格收回但 CVD / 盘口 / OI 不确认”的第二类误判风险。
 - 当前仍未完成 20 个历史窗口人工复核、Phase D LPS paper trade、P&F 仓位管理和 sandbox。
 

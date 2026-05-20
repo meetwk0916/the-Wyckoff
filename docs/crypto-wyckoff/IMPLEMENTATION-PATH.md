@@ -51,7 +51,8 @@
 - Phase C evidence 内的 funding 拥挤度上下文和 anchor 前后盘口 1m / 3m 分桶
 - Phase C review index 与规则评分报告
 - capture status / daily check 已区分 screen 心跳健康与真实 payload 健康；无真实 payload 时会标记为 `connected_no_payload`，真实 payload 超过阈值未更新时会标记为 `market_payload_stale`
-- 3 个固定 Phase C replay fixture：`short_squeeze_only`、`breakdown_risk` 和 `insufficient_evidence`
+- 4 个固定 Phase C replay fixture：2 个 `short_squeeze_only`、1 个 `breakdown_risk` 和 1 个 `insufficient_evidence`
+- 前端 BTC Phase C 监控页和 `crypto:phase-c:watch:export`
 
 待实现：
 

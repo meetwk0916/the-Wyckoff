@@ -40,7 +40,8 @@ MiniQMT / QMT 方向是独立 A 股券商适配工作面，先阅读 `docs/miniq
 - 当前默认以 soft gate 方式允许无 L2 / 逐笔环境下降级回测；真实交易时段权限验证仍未完成
 - 当前没有生产后端，也没有真实券商上游接入；仓库内已有本地 ptrade bridge / relay 联调工具
 - BTC / crypto 方向已有 `crypto-workspace/`，包含 REST / WebSocket 探测、capture、replay、fixture、Phase C evidence / classification / review、候选 cluster 扫描、unreviewed / review-next 辅助审查、分源 health 和 REST OI / Funding snapshot loop 工具
-- 当前 BTC 固定 fixture 中，短清算窗口被分类为 `short_squeeze_only`，OKX 长清算但 CVD / 盘口 / OI 不确认的窗口被分类为 `breakdown_risk`，无清算对照窗口被分类为 `insufficient_evidence`；当前还没有 `spring_candidate` 样本
+- 当前 BTC 固定 fixture 中，2 个短清算窗口被分类为 `short_squeeze_only`，OKX 长清算但 CVD / 盘口 / OI 不确认的窗口被分类为 `breakdown_risk`，无清算对照窗口被分类为 `insufficient_evidence`；当前还没有 `spring_candidate` 样本
+- 前端已新增 `BTC Phase C` 监控视图，读取 `public/mock/crypto-phase-c-watch.json` 展示分源 health、候选统计、best long cluster 和 review-next 状态
 - MiniQMT / QMT 方向已有 `miniqmt-workspace/` 和 `docs/miniqmt-wyckoff/`，当前只完成初始化、目标拆解、XtQuant adapter contract 和验证顺序
 - 手工验收用例已整理完毕
 
@@ -61,6 +62,8 @@ MiniQMT / QMT 方向是独立 A 股券商适配工作面，先阅读 `docs/miniq
 - `npm run crypto:phase-c:candidates`
 - `npm run crypto:phase-c:unreviewed`
 - `npm run crypto:phase-c:review-next`
+- `npm run crypto:phase-c:watch`
+- `npm run crypto:phase-c:watch:export`
 - `npm run crypto:rest-snapshot-loop`
 - `npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_7d_heartbeat`
 - `npm run crypto:daily-check`
