@@ -28,6 +28,7 @@
     "crypto:phase-c:unreviewed": "node crypto-workspace/src/runPhaseCUnreviewedCandidates.mjs",
     "crypto:phase-c:review-next": "node crypto-workspace/src/runPhaseCReviewNext.mjs",
     "crypto:phase-c:watch": "node crypto-workspace/src/runPhaseCWatch.mjs",
+    "crypto:phase-c:watch:export": "node crypto-workspace/src/runPhaseCWatchExport.mjs",
     "crypto:rest-snapshot-loop": "node crypto-workspace/src/runRestSnapshotLoop.mjs",
     "crypto:history:free-sources": "node crypto-workspace/src/runFreeHistoricalSourceProbe.mjs",
     "crypto:history:binance-vision": "node crypto-workspace/src/runBinanceVisionImport.mjs",

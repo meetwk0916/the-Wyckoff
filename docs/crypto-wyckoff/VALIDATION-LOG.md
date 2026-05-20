@@ -1,5 +1,47 @@
 # BTC 数据源验证记录
 
+## 2026-05-20 BTC Phase C 监控页与日检恢复
+
+背景：
+
+- 本地 raw JSONL 已增长到 70 万级 BTC events，`crypto:daily-check` 和 `crypto:phase-c:watch` 在默认 Node heap 下曾因 candidate scan 常驻完整 payload 触发 OOM。
+- OKX trade / book 的旧 72h screen 仍显示 detached，但真实 market payload 已停滞，source health 标记为 `stale`。
+- 需要同时恢复日常巡检链路、前端 BTC Phase C 监控快照和后台采集健康。
+
+改动与操作：
+
+- `runPhaseCCandidateScan.mjs` 改为只给 liquidation 事件保留原始 `payload`；普通 trade / book / OI / Funding 事件只保留候选窗口统计所需的轻量字段。
+- 新增 `crypto:phase-c:watch:export`，把 watch 摘要导出到 `public/mock/crypto-phase-c-watch.json`。
+- 前端新增 `BTC Phase C` 监控视图，展示 source health、候选统计、best long cluster 和 review-next 状态。
+- 旧 OKX trade / book screen 已停掉，并在 2026-05-20 重启为 `wyckoff_okx_trade_capture_20260520_72h` 和 `wyckoff_okx_book_capture_20260520_72h`。
+
+验证命令：
+
+```bash
+npm run crypto:phase-c:candidates
+npm run crypto:daily-check
+npm run crypto:phase-c:watch
+npm run crypto:phase-c:watch:export
+npm run crypto:phase-c:check
+npm run lint
+npm run build
+screen -ls
+```
+
+结果：
+
+- `crypto:phase-c:candidates` 不再 OOM；BTC events 736,094+，BTC liquidation events 9，liquidation clusters 3，long liquidation candidates 1，short liquidation candidates 2，full sensor ready candidates 2。
+- `crypto:daily-check` 通过；OKX trade / OKX book 恢复为 `fresh`，source issues 清零；OI / Funding 仍为 `fresh`。
+- `crypto:phase-c:watch` 通过；fresh sources 6，quiet sources 3，issues 0，unreviewed 0，review-next 为 `no_unreviewed_candidate`。
+- `crypto:phase-c:check` 通过；4 个固定窗口，`spring_candidate` 0，`breakdown_risk` 1，`short_squeeze_only` 2，`insufficient_evidence` 1，review agreement 4 / 4。
+- `npm run lint` 和 `npm run build` 通过。
+- 本地提交：`aa58c7a Add BTC Phase C monitor view`；当前本地分支 `feature/crypto-wyckoff-workspace` 领先远端 1 个提交，尚未 push。
+
+结论：
+
+- 当前不是数据源故障状态，而是没有新的 unreviewed Phase C 候选；best long cluster 仍是 2026-05-17 OKX long liquidation cluster，已复核为 `breakdown_risk`。
+- 下一步继续让 screen 长跑，日常使用 `npm run crypto:phase-c:watch` 或前端 `BTC Phase C` 页面观察是否出现新的 full-sensor long liquidation cluster。
+
 ## 2026-05-18 OKX short liquidation 对照样本固化
 
 背景：
@@ -34,7 +76,7 @@ npm run crypto:phase-c:classify -- --evidence=crypto-workspace/reports/phase-c-e
 背景：
 
 - 5 个长跑 screen 仍为 running，provider heartbeat 仍在刷新。
-- 但人工检查 tail 发现 OKX / Binance / Bybit 最近写入多为 `provider_status / capture_heartbeat`，真实 market payload 停在更早时间。
+- 但人工检查 tail 发现 OKX / Binance / Bybit 当时写入多为 `provider_status / capture_heartbeat`，真实 market payload 停在更早时间。
 - 仅看 `screen running` 和 `Last provider status at` 会误判为数据仍有效。
 
 新增内容：

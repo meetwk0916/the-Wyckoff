@@ -13,10 +13,14 @@ import {
   TrendingUp,
   Wifi,
 } from 'lucide-react'
+import { CryptoPhaseCMonitor } from './components/CryptoPhaseCMonitor.jsx'
 import { EMPTY_DASHBOARD_SNAPSHOT, FILTER_STORAGE_KEYS } from './lib/dashboardContracts.js'
 import { loadDashboardSnapshot } from './lib/loadDashboardSnapshot.js'
+import { EMPTY_CRYPTO_PHASE_C_WATCH, loadCryptoPhaseCWatch } from './lib/loadCryptoPhaseCWatch.js'
 import { EMPTY_PTRADE_HEALTH, loadPtradeHealth, loadPtradeOrderFlow } from './lib/loadPtradeBridge.js'
 import './app.css'
+
+const VIEW_STORAGE_KEY = 'wyckoff-mvp-active-view'
 
 function readSessionValue(key, fallbackValue) {
   try {
@@ -202,12 +206,16 @@ function formatPercent(value) {
 }
 
 export default function App() {
+  const [activeView, setActiveView] = useState(() => readSessionValue(VIEW_STORAGE_KEY, 'radar'))
   const [dashboardSnapshot, setDashboardSnapshot] = useState(EMPTY_DASHBOARD_SNAPSHOT)
+  const [cryptoWatch, setCryptoWatch] = useState(EMPTY_CRYPTO_PHASE_C_WATCH)
   const [ptradeHealth, setPtradeHealth] = useState(EMPTY_PTRADE_HEALTH)
   const [ptradeOrderFlow, setPtradeOrderFlow] = useState(null)
   const [ptradeOrderFlowMessage, setPtradeOrderFlowMessage] = useState('正在等待 ptrade bridge。')
   const [loadState, setLoadState] = useState('loading')
+  const [cryptoLoadState, setCryptoLoadState] = useState('loading')
   const [loadError, setLoadError] = useState('')
+  const [cryptoLoadError, setCryptoLoadError] = useState('')
   const [phaseFilter, setPhaseFilter] = useState(() => readSessionValue(FILTER_STORAGE_KEYS.phase, 'all'))
   const [statusFilter, setStatusFilter] = useState(() => readSessionValue(FILTER_STORAGE_KEYS.status, 'all'))
   const [acknowledgedAlerts, setAcknowledgedAlerts] = useState(() => readSessionList(FILTER_STORAGE_KEYS.acknowledgedAlerts))
@@ -241,6 +249,36 @@ export default function App() {
     }
 
     void bootstrapDashboardSnapshot()
+
+    return () => {
+      isActive = false
+    }
+  }, [])
+
+  useEffect(() => {
+    let isActive = true
+
+    async function bootstrapCryptoWatch() {
+      try {
+        const watch = await loadCryptoPhaseCWatch()
+
+        if (!isActive) {
+          return
+        }
+
+        setCryptoWatch(watch)
+        setCryptoLoadState('ready')
+      } catch (error) {
+        if (!isActive) {
+          return
+        }
+
+        setCryptoLoadError(error instanceof Error ? error.message : 'BTC Phase C 快照加载失败，请稍后重试。')
+        setCryptoLoadState('error')
+      }
+    }
+
+    void bootstrapCryptoWatch()
 
     return () => {
       isActive = false
@@ -291,6 +329,20 @@ export default function App() {
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : '加载本地快照失败，请稍后重试。')
       setLoadState('error')
+    }
+  }
+
+  async function refreshCryptoWatch(nextState = 'refreshing') {
+    setCryptoLoadState(nextState)
+    setCryptoLoadError('')
+
+    try {
+      const watch = await loadCryptoPhaseCWatch()
+      setCryptoWatch(watch)
+      setCryptoLoadState('ready')
+    } catch (error) {
+      setCryptoLoadError(error instanceof Error ? error.message : 'BTC Phase C 快照加载失败，请稍后重试。')
+      setCryptoLoadState('error')
     }
   }
 
@@ -419,7 +471,13 @@ export default function App() {
 
   function handleRefresh() {
     void refreshDashboardSnapshot(loadState === 'ready' ? 'refreshing' : 'loading')
+    void refreshCryptoWatch(cryptoLoadState === 'ready' ? 'refreshing' : 'loading')
     void refreshPtradeHealth(ptradeHealth.status === 'loading' ? 'loading' : 'refreshing')
+  }
+
+  function handleViewChange(nextView) {
+    setActiveView(nextView)
+    persistSessionValue(VIEW_STORAGE_KEY, nextView)
   }
 
   function handleSelectSymbol(symbol) {
@@ -465,6 +523,8 @@ export default function App() {
   const isRefreshBusy =
     loadState === 'loading' ||
     loadState === 'refreshing' ||
+    cryptoLoadState === 'loading' ||
+    cryptoLoadState === 'refreshing' ||
     ptradeHealth.status === 'loading' ||
     ptradeHealth.status === 'refreshing'
 
@@ -520,6 +580,27 @@ export default function App() {
         </div>
       </header>
 
+      <nav className="wyckoff-view-switch" aria-label="console views">
+        <button
+          type="button"
+          className={activeView === 'radar' ? 'is-active' : ''}
+          onClick={() => handleViewChange('radar')}
+        >
+          <Activity size={16} />
+          Wyckoff Radar
+        </button>
+        <button
+          type="button"
+          className={activeView === 'crypto' ? 'is-active' : ''}
+          onClick={() => handleViewChange('crypto')}
+        >
+          <Signal size={16} />
+          BTC Phase C
+        </button>
+      </nav>
+
+      {activeView === 'radar' ? (
+        <>
       <section className="wyckoff-toolbar">
         <label>
           <span>Phase filter</span>
@@ -922,6 +1003,10 @@ export default function App() {
           </div>
         </aside>
       </section>
+        </>
+      ) : (
+        <CryptoPhaseCMonitor cryptoWatch={cryptoWatch} loadState={cryptoLoadState} loadError={cryptoLoadError} />
+      )}
     </div>
   )
 }

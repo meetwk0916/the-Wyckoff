@@ -172,12 +172,14 @@ npm run crypto:phase-c:candidates -- --no-cluster
 npm run crypto:phase-c:unreviewed
 npm run crypto:phase-c:review-next
 npm run crypto:phase-c:watch
+npm run crypto:phase-c:watch:export
 ```
 
 The candidate scan report is written to `crypto-workspace/reports/phase-c-candidates-last.json`. It finds BTC liquidation events, defaults to merging overlapping same-provider / same-direction events into clusters, builds review windows around those clusters, checks trade / book / OI / Funding / liquidation coverage, and emits fixture drafts. Use `--no-cluster` only when debugging raw event-level duplication. It does not classify Spring or approve trades.
 The unreviewed report is written to `crypto-workspace/reports/phase-c-unreviewed-candidates-last.json`. It matches candidate windows against reviewed fixtures by time-window overlap, so repeated liquidation events in the same reviewed cluster do not create duplicate review work.
 `crypto:phase-c:review-next` refreshes candidates and unreviewed candidates, takes the highest-priority unreviewed candidate, writes a temporary single-fixture config, runs evidence + classification, and writes `reports/phase-c-review-next-last.json` with the suggested label. This is a review assistant only; it still requires manual confirmation before adding the fixture to `config/replay-fixtures.json`.
 `crypto:phase-c:watch` is the compact daily operator view. It runs daily-check, unreviewed, and review-next, then writes `reports/phase-c-watch-last.json` with source health, candidate counts, the best long-liquidation cluster, review-next status, and a single next action.
+`crypto:phase-c:watch:export` reruns watch and writes `public/mock/crypto-phase-c-watch.json`, which powers the frontend BTC Phase C monitoring page.
 
 Replay a local JSONL window:
 
@@ -242,17 +244,18 @@ npm run crypto:phase-c:verify
 
 ## Current Status
 
-As of 2026-05-17:
+As of 2026-05-20:
 
-- Three pinned OKX BTC replay fixtures exist in `config/replay-fixtures.json`: one `short_squeeze_only`, one `breakdown_risk`, and one `insufficient_evidence`.
-- `npm run crypto:fixtures` passes all three fixtures.
-- `npm run crypto:phase-c:evidence` emits two Phase C-ready evidence windows and one insufficient-evidence control window, including local structure support / recovery context.
+- Four pinned OKX BTC replay fixtures exist in `config/replay-fixtures.json`: two `short_squeeze_only`, one `breakdown_risk`, and one `insufficient_evidence`.
+- `npm run crypto:fixtures` passes all four fixtures.
+- `npm run crypto:phase-c:evidence` emits three Phase C-ready evidence windows and one insufficient-evidence control window, including local structure support / recovery context.
 - `npm run crypto:phase-c:evidence` also emits first-pass spot / perp CVD context with notional delta, delta ratio, demand / supply bias, divergence, and Phase C flow support.
 - Funding crowding and post-anchor 1m / 3m order book changes are now captured as calibration context; they do not replace the hard Spring gates.
 - `npm run crypto:phase-c:classify` classifies the pinned liquidation windows as `short_squeeze_only` and `breakdown_risk`, not `spring_candidate`; future Spring candidates must still pass long liquidation direction, structure recovery, book recovery, Phase C CVD support, and OI deleveraging.
-- `npm run crypto:phase-c:review` reads the seed review index, scores all three windows, and reports 3 reviewed / 0 pending with system-review agreement.
+- `npm run crypto:phase-c:review` reads the seed review index, scores all four windows, and reports 4 reviewed / 0 pending with system-review agreement.
 - `npm run crypto:phase-c:check` is the preferred local guardrail because it runs evidence, classify, review, and verify in order.
-- `npm run crypto:phase-c:candidates` currently finds 8 BTC liquidation candidates in local raw data: 7 long liquidation candidates and 1 short liquidation control window. The first reviewed long-liquidation cluster is a `breakdown_risk` sample because CVD, book recovery, and OI deleveraging are not supportive.
+- `npm run crypto:phase-c:candidates` currently reduces 9 BTC liquidation events to 3 liquidation clusters: 1 long liquidation cluster and 2 short liquidation control clusters. The reviewed long-liquidation cluster is a `breakdown_risk` sample because CVD, book recovery, and OI deleveraging are not supportive.
+- `npm run crypto:phase-c:watch:export` exports the current operator watch summary to `public/mock/crypto-phase-c-watch.json` for the BTC Phase C frontend monitor.
 - `npm run crypto:history:free-sources -- --provider=binance_vision --date=2026-05-09 --live` confirms Binance Vision spot/perp aggTrades and 1m klines are available for that date, while USDT-M `liquidationSnapshot` is unavailable.
 - `npm run crypto:history:binance-vision -- --date=2026-05-09 --limit-rows=1000 --download` imports 1,000 spot and 1,000 USDT-M futures aggTrade rows as normalized trade events. Candidate scan sees them as additional BTC events but still depends on separate liquidation evidence.
 - Bybit public WebSocket support is wired as an additional free realtime liquidation source. The current heartbeat-enabled long-running session name is `wyckoff_bybit_liq_capture_7d_heartbeat`, and its status command is `npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_7d_heartbeat`.

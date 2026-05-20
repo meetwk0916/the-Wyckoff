@@ -1,0 +1,116 @@
+{
+  "reportType": "crypto_phase_c_watch",
+  "schemaVersion": 1,
+  "generatedAt": "2026-05-20T13:37:21.031Z",
+  "reports": {
+    "daily": "/Users/walterwan90/Code/the-Wyckoff/crypto-workspace/reports/daily-capture-check-last.json",
+    "candidates": "/Users/walterwan90/Code/the-Wyckoff/crypto-workspace/reports/phase-c-candidates-last.json",
+    "unreviewed": "/Users/walterwan90/Code/the-Wyckoff/crypto-workspace/reports/phase-c-unreviewed-candidates-last.json",
+    "reviewNext": "/Users/walterwan90/Code/the-Wyckoff/crypto-workspace/reports/phase-c-review-next-last.json",
+    "watch": "/Users/walterwan90/Code/the-Wyckoff/crypto-workspace/reports/phase-c-watch-last.json"
+  },
+  "sourceSummary": {
+    "healthy": 9,
+    "fresh": 6,
+    "quiet": 3,
+    "issues": 0,
+    "sources": [
+      {
+        "key": "okx_trade",
+        "label": "OKX trade",
+        "status": "fresh",
+        "lastDataPayloadAgeMinutes": 0
+      },
+      {
+        "key": "okx_book",
+        "label": "OKX book",
+        "status": "fresh",
+        "lastDataPayloadAgeMinutes": 0
+      },
+      {
+        "key": "okx_liquidation",
+        "label": "OKX liquidation",
+        "status": "connected_no_sample",
+        "lastDataPayloadAgeMinutes": 2862
+      },
+      {
+        "key": "binance_force_order",
+        "label": "Binance forceOrder",
+        "status": "connected_no_sample",
+        "lastDataPayloadAgeMinutes": null
+      },
+      {
+        "key": "bybit_liquidation",
+        "label": "Bybit liquidation",
+        "status": "connected_no_payload",
+        "lastDataPayloadAgeMinutes": null
+      },
+      {
+        "key": "binance_open_interest",
+        "label": "Binance OI",
+        "status": "fresh",
+        "lastDataPayloadAgeMinutes": 3.1
+      },
+      {
+        "key": "binance_funding",
+        "label": "Binance Funding",
+        "status": "fresh",
+        "lastDataPayloadAgeMinutes": 3.1
+      },
+      {
+        "key": "okx_open_interest",
+        "label": "OKX OI",
+        "status": "fresh",
+        "lastDataPayloadAgeMinutes": 3.1
+      },
+      {
+        "key": "okx_funding",
+        "label": "OKX Funding",
+        "status": "fresh",
+        "lastDataPayloadAgeMinutes": 3.1
+      }
+    ]
+  },
+  "candidateSummary": {
+    "btcLiquidationEvents": 9,
+    "liquidationClusters": 3,
+    "candidates": 3,
+    "longLiquidation": 1,
+    "shortLiquidation": 2,
+    "fullSensorReady": 2,
+    "unreviewed": 0,
+    "unreviewedLongLiquidation": 0,
+    "unreviewedFullSensorReady": 0,
+    "bestLong": {
+      "id": "okx-btc-liquidation-cluster-20260517T1407Z",
+      "priority": "p0_long_liquidation_full_sensor",
+      "center": "2026-05-17T14:07:03.901Z",
+      "fullSensorReady": true,
+      "phaseCInputsReady": true,
+      "clusterEvents": 7,
+      "reviewMatch": {
+        "id": "okx-btc-long-liquidation-2026-05-17T14-07Z",
+        "humanLabel": "breakdown_risk",
+        "start": "2026-05-17T14:02:04Z",
+        "end": "2026-05-17T14:12:04Z",
+        "overlapRatio": 0.9756
+      }
+    }
+  },
+  "reviewNext": {
+    "status": "no_unreviewed_candidate",
+    "suggestedLabel": "",
+    "suggestedConfidence": "",
+    "nextAction": "Wait for a new unreviewed candidate or widen the scan inputs."
+  },
+  "attention": {
+    "needsAttention": true,
+    "reasons": [
+      "long_liquidation_candidate_available"
+    ],
+    "sourceIssues": []
+  },
+  "nextAction": "No unreviewed candidate. Keep monitoring for a new full-sensor long liquidation cluster.",
+  "exportedAt": "2026-05-20T13:37:21.050Z",
+  "sourceReport": "/Users/walterwan90/Code/the-Wyckoff/crypto-workspace/reports/phase-c-watch-last.json"
+}
