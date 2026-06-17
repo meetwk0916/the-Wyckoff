@@ -39,7 +39,7 @@ ptrade 路线按下面顺序推进：
 
 当前定位：已具备最小可用脚本，用于回测 / 模拟盘上线前检查；默认优先走研究目录 JSON + sqlite3 持久化，HTTP 仅作为可选增强探测。
 
-- [x] 已补充 `ptrade_phase1_validation.py`
+- [x] 已补充 `ptrade-workspace/tools/ptrade_phase1_validation.py`
 - [x] 已补充 `PTRADE-VALIDATION.md`
 - [x] 已验证账号绑定与本地落盘能力
 - [x] 已把 Phase 0 默认路径切到 JSON / sqlite3 本地持久化优先

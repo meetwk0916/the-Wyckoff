@@ -10,8 +10,8 @@
 - `IMPLEMENTATION-PATH.md`：MiniQMT 路线的阶段拆解、退出条件和当前最优下一步。
 - `ADAPTER-CONTRACT.md`：Windows 侧 XtQuant 适配器与当前仓库之间的最小事件契约。
 - `VALIDATION-LOG.md`：环境、权限、行情、L2、交易回报和桥接验证记录。
-- `../wyckoff-mvp/QMT-INTEGRATION.md`：原始 QMT 接入路线研究。
-- `../wyckoff-mvp/BROKER-INTEGRATION-EXPERIMENTS.md`：ptrade 与 QMT 两条券商接入实验路线总览。
+- `QMT-INTEGRATION.md`：原始 QMT 接入路线研究。
+- `../ptrade-wyckoff/BROKER-INTEGRATION-EXPERIMENTS.md`：ptrade 与 QMT 两条券商接入实验路线总览。
 
 ## 与工作区的关系
 

@@ -28,7 +28,7 @@
 
 - `PTRADE-INTEGRATION.md`
 - `PTRADE-VALIDATION.md`
-- `ptrade_phase1_validation.py`
+- `ptrade-workspace/tools/ptrade_phase1_validation.py`
 
 当前验证重点：
 
@@ -50,7 +50,7 @@
 
 已完成材料：
 
-- `QMT-INTEGRATION.md`
+- `../miniqmt-wyckoff/QMT-INTEGRATION.md`
 - `docs/reference/qmt/迅投QMT极速策略交易系统说明文档.pdf`
 - `docs/miniqmt-wyckoff/README.md`
 - `miniqmt-workspace/README.md`

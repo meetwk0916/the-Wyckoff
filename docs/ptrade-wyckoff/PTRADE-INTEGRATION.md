@@ -8,14 +8,14 @@
 
 这意味着此前的 L2 验证仍然重要，但它现在要进入策略侧的真实数据输入边界；是否强制阻塞入场由策略参数控制。
 
-ptrade 的完整目标、成功准则和硬闸门已迁移到 `../ptrade-wyckoff/`；本文件只保留对接边界、bridge 角色和消费路径说明。
+ptrade 的完整目标、成功准则和硬闸门见同目录的 `GOALS.md` / `README.md`；本文件只保留对接边界、bridge 角色和消费路径说明。
 
 ## 当前仓库状态
 
 - 已落地本地 `ptrade bridge` 服务骨架
 - 已提供 L2 订单流样例接口和前端联调面板
 - 已验证 ptrade 运行时账号绑定、本地落盘和基础网络边界
-- 已补充最小环境验证脚本 `ptrade_phase1_validation.py`
+- 已补充最小环境验证脚本 `ptrade-workspace/tools/ptrade_phase1_validation.py`
 - 已新增 ptrade 原生策略主脚本 `ptrade-workspace/strategy/ptrade_wyckoff_trader.py`
 - 已新增回测 / 模拟盘操作说明 `PTRADE-TRADING.md`
 - 已新增隔离目录 `ptrade-workspace/`
@@ -63,7 +63,7 @@ ptrade 的完整目标、成功准则和硬闸门已迁移到 `../ptrade-wyckoff
 
 当前仓库中与这条路径直接相关的文件有：
 
-- `ptrade_phase1_validation.py`
+- `ptrade-workspace/tools/ptrade_phase1_validation.py`
 - `PTRADE-VALIDATION.md`
 - `ptrade-workspace/strategy/ptrade_wyckoff_trader.py`
 - `ptrade-workspace/config/ptrade-wyckoff-policy-pool.json`
@@ -81,7 +81,7 @@ ptrade 的完整目标、成功准则和硬闸门已迁移到 `../ptrade-wyckoff
 
 ### 关键交付物
 
-- `ptrade_phase1_validation.py`
+- `ptrade-workspace/tools/ptrade_phase1_validation.py`
 - `PTRADE-VALIDATION.md`
 
 ### 完成标准

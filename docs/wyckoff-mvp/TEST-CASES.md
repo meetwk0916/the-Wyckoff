@@ -273,7 +273,7 @@
 
 步骤：
 
-1. 运行 `ptrade_phase1_validation.py` 或 canonical 策略。
+1. 运行 `ptrade-workspace/tools/ptrade_phase1_validation.py` 或 canonical 策略。
 2. 检查 snapshot、trade stream 与确认字段。
 
 预期：
