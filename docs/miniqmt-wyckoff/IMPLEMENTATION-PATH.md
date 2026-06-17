@@ -2,7 +2,11 @@
 
 ## 当前阶段
 
-当前是初始化阶段：建立独立分支、独立 workspace、独立文档入口和最小适配契约。
+离线可验证管线（轨道 A）已跑通，Windows 适配器脚本（轨道 B）已就绪但尚未在真实
+客户端验证。详见 `VALIDATION-LOG.md`（2026-06-17）与 `docs/REVIEW-AND-MINIQMT-PLAN.md`。
+
+Phase 0/1/3 的真实连接部分仍待在 Windows + 账号权限下执行；Phase 2 的离线证据/分类/
+回放/fixture 已在本机实现并可重复验证。
 
 ## Phase 0：MiniQMT 环境预检查
 
@@ -46,12 +50,13 @@
 
 工作项：
 
-- [ ] 将 MiniQMT 原始事件落盘为 JSONL 或 sqlite3。
-- [ ] 设计 replay window：按标的、时间、事件类型回放。
-- [ ] 生成 Wyckoff evidence report：长周期量价、RS / Beta、支撑阻力、订单簿失衡、逐笔 CVD、风险闸门。
-- [ ] 建立 seed fixture，防止后续规则漂移。
+- [x] 将 MiniQMT 原始事件落盘为 JSONL（`adapter/lib_contract.py` 的 `JsonlStore`）。
+- [x] 设计 replay window：按标的、时间、事件类型回放（`src/lib/wyckoff.mjs` + fixtures）。
+- [x] 生成 Wyckoff evidence report：长周期量价、RS / Beta、支撑阻力、订单簿失衡、逐笔 CVD、风险闸门（`src/runEvidence.mjs`）。
+- [x] 建立 seed fixture，防止后续规则漂移（`fixtures/*.json` + `src/runVerify.mjs`）。
+- [x] 内置前瞻证伪契约 + dumb baseline 对照（`src/runOutcome.mjs`，落实方法论审查建议）。
 
-退出条件：
+退出条件（已满足，离线轨道）：
 
 - 至少一个历史窗口可回放。
 - evidence report 不输出交易动作，只输出证据和分类。
@@ -94,8 +99,8 @@
 
 ## 当前最优下一步
 
-1. 在 Windows 侧确认 MiniQMT / QMT 客户端、XtQuant 包和 userdata 路径。
-2. 新增最小 `health` adapter 脚本，只做连接与账号状态查询。
-3. 把 health 输出映射到 `ADAPTER-CONTRACT.md` 中定义的结构。
-4. 再验证行情、L2 和逐笔能力。
+1. 在 Windows 侧运行 `python miniqmt-workspace/adapter/health_check.py --mock` 确认契约输出，再用 `--userdata/--account` 连真实客户端，输出 Phase 0 health 并回填 `VALIDATION-LOG.md`。
+2. 用 `quote_capture.py` / `order_flow_capture.py` 验证基础行情与 L2/逐笔权限；无 L2 时如实降级。
+3. 用 `replay_export.py` 把真实录制导出为 `fixtures/ashare-live-*.json`，喂入轨道 A（`miniqmt:check`）做人工复核。
+4. 累计 ≥20 个复核窗口后，再用 `paper_trade_probe.py` 推进 Phase 3 模拟盘闭环。
 

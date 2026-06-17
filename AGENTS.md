@@ -43,6 +43,7 @@ MiniQMT / QMT 方向是独立 A 股券商适配工作面，先阅读 `docs/miniq
 - 当前 BTC 固定 fixture 中，2 个短清算窗口被分类为 `short_squeeze_only`，OKX 长清算但 CVD / 盘口 / OI 不确认的窗口被分类为 `breakdown_risk`，无清算对照窗口被分类为 `insufficient_evidence`；当前还没有 `spring_candidate` 样本
 - 前端已新增 `BTC Phase C` 监控视图，读取 `public/mock/crypto-phase-c-watch.json` 展示分源 health、候选统计、best long cluster 和 review-next 状态
 - MiniQMT / QMT 方向已有 `miniqmt-workspace/` 和 `docs/miniqmt-wyckoff/`，当前只完成初始化、目标拆解、XtQuant adapter contract 和验证顺序
+- MiniQMT 方向已推进到可验证阶段：`miniqmt-workspace/src/` 离线 Node 管线（evidence → classify → outcome → verify，含前瞻证伪契约 + dumb baseline 对照）已跑通，`miniqmt-workspace/adapter/` Windows XtQuant 脚本（health / quote / order_flow / paper_trade / replay_export，全部带 `--mock`）已就绪待真机验证；详见 `docs/REVIEW-AND-MINIQMT-PLAN.md`
 - 手工验收用例已整理完毕
 
 ## 常用命令
@@ -67,6 +68,7 @@ MiniQMT / QMT 方向是独立 A 股券商适配工作面，先阅读 `docs/miniq
 - `npm run crypto:rest-snapshot-loop`
 - `npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_7d_heartbeat`
 - `npm run crypto:daily-check`
+- `npm run miniqmt:check`
 
 ## 工作规则
 
@@ -91,3 +93,4 @@ MiniQMT / QMT 方向是独立 A 股券商适配工作面，先阅读 `docs/miniq
 7. ptrade 路线：在真实 ptrade 交易时段验证 L2 / 逐笔成交权限，并决定何时把 `require_l2_for_entry` / `require_trade_stream_for_entry` 切为强制闸门。
 8. MiniQMT 路线：在 Windows 侧确认 MiniQMT / QMT 客户端、XtQuant 包、userdata 路径和账号状态，优先输出标准化 `health` 事件。
 9. MiniQMT 路线：验证基础行情、L2、逐笔委托 / 成交能力，再决定是否实现录制 / 回放和模拟盘闭环。
+10. MiniQMT 路线：离线轨道用 `npm run miniqmt:check`（或 `node miniqmt-workspace/src/run*.mjs`）回归；新增 A 股窗口先经 `adapter/replay_export.py` 导出为 fixture，再人工复核并在 `runVerify.mjs` 钉死，累计 ≥20 个窗口后再推进 Phase 3。

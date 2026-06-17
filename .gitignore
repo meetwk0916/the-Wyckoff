@@ -32,6 +32,8 @@ crypto-workspace/data/**/*.zip
 crypto-workspace/reports/*.json
 crypto-workspace/reports/**/*.json
 crypto-workspace/run/*.pid
+miniqmt-workspace/reports/*.json
+!miniqmt-workspace/reports/.gitkeep
 
 # Python
 .venv/

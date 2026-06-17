@@ -56,6 +56,13 @@ ptrade 当前首要功能清单：
 - 当前 MiniQMT 路线只做环境预检查、行情 / L2 / 逐笔能力验证、标准化事件契约、录制 / 回放和模拟盘闭环设计。
 - 当前不连接真实资金账户，不保存账号凭据，不启用实盘下单。
 
+截至 2026-06-17，MiniQMT / QMT 方向已推进到「可验证阶段」（详见 `docs/REVIEW-AND-MINIQMT-PLAN.md`）：
+
+- 轨道 A（离线可验证管线，已跑通）：`miniqmt-workspace/src/` 纯 Node 实现 evidence → classify → outcome → verify，3 个 A 股 seed fixture，内置前瞻证伪契约与 dumb baseline 对照；`npm run miniqmt:check` 可重复通过，gate 命中率 1.0 vs baseline 0.667。
+- 轨道 B（Windows 适配器脚本，已就绪待跑）：`miniqmt-workspace/adapter/` 覆盖 Phase 0 health、Phase 1 行情 / L2、Phase 3 模拟盘探针、录制导出，全部带 `--mock`，`--arm-live` 被拒绝。
+- 无 L2 权限的窗口被正确降级为 `insufficient_evidence`，不伪造微观确认；所有分类不输出交易动作。
+- 真实客户端连接、L2 / 逐笔权限与模拟盘闭环仍需在 Windows + 账号权限下验证。
+
 ## 项目定位
 
 这个项目独立于现有聊天项目，只承载 Wyckoff Radar MVP 的前端原型与后续迭代。
@@ -112,6 +119,7 @@ ptrade 当前首要功能清单：
 - [docs/miniqmt-wyckoff/IMPLEMENTATION-PATH.md](docs/miniqmt-wyckoff/IMPLEMENTATION-PATH.md)
 - [docs/miniqmt-wyckoff/ADAPTER-CONTRACT.md](docs/miniqmt-wyckoff/ADAPTER-CONTRACT.md)
 - [docs/miniqmt-wyckoff/VALIDATION-LOG.md](docs/miniqmt-wyckoff/VALIDATION-LOG.md)
+- [docs/REVIEW-AND-MINIQMT-PLAN.md](docs/REVIEW-AND-MINIQMT-PLAN.md)
 - [docs/crypto-wyckoff/README.md](docs/crypto-wyckoff/README.md)
 - [docs/crypto-wyckoff/GOALS.md](docs/crypto-wyckoff/GOALS.md)
 - [docs/crypto-wyckoff/DATA-SOURCES.md](docs/crypto-wyckoff/DATA-SOURCES.md)
@@ -199,6 +207,8 @@ PTRADE_MODE=upstream PTRADE_UPSTREAM_URL=http://<broker-reachable-ip-or-host>:19
 - `npm run crypto:phase-c:check`：按 evidence → classify → review → verify 顺序运行完整 Phase C 守门链路
 - `npm run crypto:capture:status -- --screen=wyckoff_bybit_liq_capture_7d_heartbeat`：监控心跳版 Bybit liquidation 长跑采集
 - `npm run crypto:daily-check`：每日汇总 Bybit 7d 长跑 screen、最新心跳、最新真实 market payload、分源 health、BTC long / short liquidation 和 Phase C candidate 状态；当 `market_payload_stale` 出现时，说明 screen / heartbeat 仍活着但真实行情 payload 已停滞
+- `npm run miniqmt:check`：运行 MiniQMT 离线可验证管线 contract:validate → evidence → classify → outcome → verify（纯 Node，无第三方依赖，不发交易动作）
+- `npm run miniqmt:evidence` / `miniqmt:classify` / `miniqmt:outcome` / `miniqmt:verify` / `miniqmt:contract:validate`：管线单步
 - `npm run crypto:phase-c:candidates`：扫描 Phase C 候选窗口，默认把重叠 liquidation 归并成 cluster
 - `npm run crypto:phase-c:unreviewed`：对比 candidate scan、fixture 和 review index，列出尚未固化复核的 Phase C 候选
 - `npm run crypto:phase-c:review-next`：取第一个 unreviewed candidate 生成临时 evidence / classification 和建议标签

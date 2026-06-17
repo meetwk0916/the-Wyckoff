@@ -6,17 +6,40 @@
 
 ## 当前阶段状态
 
-截至 2026-05-13：
+截至 2026-06-17：
 
-- 已建立独立分支 `feature/miniqmt-wyckoff-workspace`。
-- 已建立 `docs/miniqmt-wyckoff/` 和 `miniqmt-workspace/`。
-- 当前只定义目标、契约、配置边界和验证顺序。
-- 尚未连接真实 Windows MiniQMT / QMT 客户端。
-- 尚未实现下单、撤单或实盘交易。
+- 已建立独立分支与 `docs/miniqmt-wyckoff/`、`miniqmt-workspace/`。
+- **轨道 A（离线可验证管线，已跑通）**：`src/` 纯 Node 实现 evidence → classify → outcome → verify，3 个 A 股 seed fixture，内置前瞻证伪契约与 dumb baseline 对照。
+- **轨道 B（Windows 适配器脚本，已就绪待跑）**：`adapter/` Python 脚本覆盖 Phase 0 health、Phase 1 行情/L2、Phase 3 模拟盘探针、录制导出，全部带 `--mock`。
+- 尚未连接真实 Windows MiniQMT / QMT 客户端；尚未实现/开启真实交易。
+
+## 命令
+
+离线管线（本机即可，无第三方依赖）：
+
+```bash
+npm run miniqmt:check        # contract:validate -> evidence -> classify -> outcome -> verify
+# 或单步：miniqmt:contract:validate / miniqmt:evidence / miniqmt:classify / miniqmt:outcome / miniqmt:verify
+# 若 npm 受限，可直接：node miniqmt-workspace/src/runEvidence.mjs 等
+```
+
+Windows 适配器（在装有 MiniQMT/QMT + XtQuant 的 Windows 上）：
+
+```bash
+python adapter/health_check.py --mock
+python adapter/health_check.py --userdata "C:/path/userdata_mini" --account <id>
+python adapter/quote_capture.py --mock --symbols 600570.SH
+python adapter/order_flow_capture.py --mock --symbols 600570.SH
+python adapter/paper_trade_probe.py --mock --symbol 600570.SH
+python adapter/replay_export.py --recording state/order_flow.jsonl --symbol 600570.SH --out fixtures/ashare-live-600570.json
+```
 
 ## 文件
 
-- `adapter/README.md`：Windows 侧 XtQuant 适配器边界。
+- `src/`：离线 Node 管线（`lib/` + `run*.mjs`）。
+- `fixtures/`：A 股 seed 窗口与 `recordings/` 契约样例。
+- `reports/`：管线输出（git 忽略，运行时生成）。
+- `adapter/`：Windows 侧 XtQuant 外部 Python 适配器。
 - `config/miniqmt-wyckoff-policy-pool.json`：A 股策略候选池样例。
 - `state/README.md`：本地状态、日志、录制文件边界。
 - `miniqmt.code-workspace`：只打开本工作区与 MiniQMT 文档的 VS Code 工作区文件。
