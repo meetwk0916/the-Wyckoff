@@ -106,14 +106,17 @@ ptrade 当前首要功能清单：
 - [docs/wyckoff-mvp/IMPLEMENTATION-PATH.md](docs/wyckoff-mvp/IMPLEMENTATION-PATH.md)
 - [docs/wyckoff-mvp/SPRINTS.md](docs/wyckoff-mvp/SPRINTS.md)
 - [docs/wyckoff-mvp/MVP.md](docs/wyckoff-mvp/MVP.md)
-- [docs/wyckoff-mvp/BROKER-INTEGRATION-EXPERIMENTS.md](docs/wyckoff-mvp/BROKER-INTEGRATION-EXPERIMENTS.md)
 - [docs/ptrade-wyckoff/README.md](docs/ptrade-wyckoff/README.md)
 - [docs/ptrade-wyckoff/GOALS.md](docs/ptrade-wyckoff/GOALS.md)
 - [docs/ptrade-wyckoff/IMPLEMENTATION-PATH.md](docs/ptrade-wyckoff/IMPLEMENTATION-PATH.md)
 - [docs/ptrade-wyckoff/TWO-LAYER-REVIEW.md](docs/ptrade-wyckoff/TWO-LAYER-REVIEW.md)
 - [docs/ptrade-wyckoff/PAPER-TRADE-ACCEPTANCE.md](docs/ptrade-wyckoff/PAPER-TRADE-ACCEPTANCE.md)
 - [docs/ptrade-wyckoff/RISK-REGISTER.md](docs/ptrade-wyckoff/RISK-REGISTER.md)
-- [docs/wyckoff-mvp/QMT-INTEGRATION.md](docs/wyckoff-mvp/QMT-INTEGRATION.md)
+- [docs/ptrade-wyckoff/PTRADE-TRADING.md](docs/ptrade-wyckoff/PTRADE-TRADING.md)
+- [docs/ptrade-wyckoff/PTRADE-INTEGRATION.md](docs/ptrade-wyckoff/PTRADE-INTEGRATION.md)
+- [docs/ptrade-wyckoff/PTRADE-VALIDATION.md](docs/ptrade-wyckoff/PTRADE-VALIDATION.md)
+- [docs/ptrade-wyckoff/BROKER-INTEGRATION-EXPERIMENTS.md](docs/ptrade-wyckoff/BROKER-INTEGRATION-EXPERIMENTS.md)
+- [docs/miniqmt-wyckoff/QMT-INTEGRATION.md](docs/miniqmt-wyckoff/QMT-INTEGRATION.md)
 - [docs/miniqmt-wyckoff/README.md](docs/miniqmt-wyckoff/README.md)
 - [docs/miniqmt-wyckoff/GOALS.md](docs/miniqmt-wyckoff/GOALS.md)
 - [docs/miniqmt-wyckoff/IMPLEMENTATION-PATH.md](docs/miniqmt-wyckoff/IMPLEMENTATION-PATH.md)
@@ -186,8 +189,8 @@ PTRADE_MODE=upstream PTRADE_UPSTREAM_URL=http://<broker-reachable-ip-or-host>:19
 
 如果你要先在官方 PTrade 环境里验证账号绑定、研究目录 JSON / sqlite3 落盘，以及可选的出站 HTTP 探测，可直接使用：
 
-- `docs/wyckoff-mvp/ptrade_phase1_validation.py`
-- `docs/wyckoff-mvp/PTRADE-VALIDATION.md`
+- `ptrade-workspace/tools/ptrade_phase1_validation.py`
+- `docs/ptrade-wyckoff/PTRADE-VALIDATION.md`
 - `docs/ptrade-wyckoff/README.md`
 
 ## 可用脚本

@@ -20,7 +20,7 @@ MiniQMT / QMT 方向是独立 A 股券商适配工作面，先阅读 `docs/miniq
 4. `docs/wyckoff-mvp/MVP.md`
 5. `docs/wyckoff-mvp/TEST-CASES.md`
 6. 如处理 ptrade 路线，先读 `docs/ptrade-wyckoff/README.md`、`GOALS.md`、`IMPLEMENTATION-PATH.md`、`TWO-LAYER-REVIEW.md` 和 `NO-HTTP-DATA-EXCHANGE.md`
-7. 如需要 ptrade 操作细节，再读 `docs/wyckoff-mvp/PTRADE-TRADING.md`、`PTRADE-INTEGRATION.md` 和 `PTRADE-VALIDATION.md`
+7. 如需要 ptrade 操作细节，再读 `docs/ptrade-wyckoff/PTRADE-TRADING.md`、`PTRADE-INTEGRATION.md` 和 `PTRADE-VALIDATION.md`
 8. 如处理 BTC / crypto 路线，再读 `docs/crypto-wyckoff/README.md` 和 `crypto-workspace/README.md`
 9. 如处理 MiniQMT / QMT 路线，再读 `docs/miniqmt-wyckoff/README.md` 和 `miniqmt-workspace/README.md`
 
@@ -35,7 +35,7 @@ MiniQMT / QMT 方向是独立 A 股券商适配工作面，先阅读 `docs/miniq
 - ptrade 策略侧已接入静态标的池、长周期量价、RS / Beta、L2 订单簿失衡、逐笔 CVD 和 pickle 状态记忆
 - 已完成 canonical ptrade 脚本的一轮真实参数回测，已验证报告 / 状态记忆 / 试仓升级 / runner 重锚主路径
 - ptrade 下一步已拆为两层审查：先用回测审查结构候选是否符合 Wyckoff，再用模拟盘审查执行闭环
-- 已在实际 ptrade 环境验证 `get_research_path()` + JSON + sqlite3 的 Phase 0 无 HTTP 基线，`ptrade_phase1_validation.py` 默认先走本地持久化
+- 已在实际 ptrade 环境验证 `get_research_path()` + JSON + sqlite3 的 Phase 0 无 HTTP 基线，`ptrade-workspace/tools/ptrade_phase1_validation.py` 默认先走本地持久化
 - Windows relay 仅保留为客户端本地联调工具，不再默认视为 ptrade 真正运行环境的目标地址
 - 当前默认以 soft gate 方式允许无 L2 / 逐笔环境下降级回测；真实交易时段权限验证仍未完成
 - 当前没有生产后端，也没有真实券商上游接入；仓库内已有本地 ptrade bridge / relay 联调工具

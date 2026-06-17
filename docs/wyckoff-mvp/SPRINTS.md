@@ -58,7 +58,7 @@ ptrade 详细目标、硬闸门和当前优先级统一维护在 `../ptrade-wyck
 
 交付物：
 
-- `ptrade_phase1_validation.py` 环境预检查脚本
+- `ptrade-workspace/tools/ptrade_phase1_validation.py` 环境预检查脚本
 - `ptrade-workspace/strategy/ptrade_wyckoff_trader.py` 作为唯一主策略脚本
 - 研究目录 JSON / sqlite3 的无 HTTP 默认落盘基线
 - 基于 `order` / `get_open_orders` / `get_trades` / `get_positions` 的最小执行闭环

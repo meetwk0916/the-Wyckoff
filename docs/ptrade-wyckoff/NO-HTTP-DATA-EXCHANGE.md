@@ -184,7 +184,7 @@ FAQ 明确写到：
 
 ## 对当前仓库的直接含义
 
-1. `docs/wyckoff-mvp/ptrade_phase1_validation.py` 默认应优先写 JSON 和 sqlite，而不是默认打公网 HTTP。
+1. `ptrade-workspace/tools/ptrade_phase1_validation.py` 默认应优先写 JSON 和 sqlite，而不是默认打公网 HTTP。
 2. Windows 本机 relay 只能作为客户端本地联调工具，不能默认当成 ptrade 真正出站目标。
 3. 后续如果要做 bridge，优先考虑“从研究目录 JSON / sqlite 读取”这一条内网友好路径，而不是要求 ptrade 主动回调客户端服务。
 

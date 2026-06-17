@@ -11,7 +11,7 @@
 3. 当前运行环境是否能把结果稳定落到本地 JSON 文件。
 4. 当前运行环境是否允许向外发送 HTTP 请求。
 
-对应脚本文件：`ptrade_phase1_validation.py`
+对应脚本文件：`ptrade-workspace/tools/ptrade_phase1_validation.py`
 
 ## 最短用法
 

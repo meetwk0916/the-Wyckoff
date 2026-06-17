@@ -12,9 +12,10 @@
 - `PAPER-TRADE-ACCEPTANCE.md`：模拟盘主推 / 轮询 / 账户级巡检、报告和状态记忆闭环验收清单。
 - `RISK-REGISTER.md`：ptrade 路线的核心风险、可行性边界和暂停 / 降级条件。
 - `NO-HTTP-DATA-EXCHANGE.md`：基于官方文档整理的研究目录 / 文件 / sqlite3 无 HTTP 数据交换方案。
-- `../wyckoff-mvp/PTRADE-TRADING.md`：canonical 策略脚本的回测 / 模拟盘操作说明。
-- `../wyckoff-mvp/PTRADE-INTEGRATION.md`：bridge、环境约束和对接边界说明。
-- `../wyckoff-mvp/PTRADE-VALIDATION.md`：Phase 0 环境验证说明。
+- `PTRADE-TRADING.md`：canonical 策略脚本的回测 / 模拟盘操作说明。
+- `PTRADE-INTEGRATION.md`：bridge、环境约束和对接边界说明。
+- `PTRADE-VALIDATION.md`：Phase 0 环境验证说明。
+- `BROKER-INTEGRATION-EXPERIMENTS.md`：ptrade 与 QMT 两条券商接入实验路线总览。
 
 ## 与工作区的关系
 
@@ -27,7 +28,7 @@
 
 截至 2026-05-14：
 
-- 已完成 Phase 0 无 HTTP 基线验证，`ptrade_phase1_validation.py` 默认先写研究目录 JSON 与 sqlite3。
+- 已完成 Phase 0 无 HTTP 基线验证，`ptrade-workspace/tools/ptrade_phase1_validation.py` 默认先写研究目录 JSON 与 sqlite3。
 - Windows relay 只保留为客户端本地联调工具，不再默认作为 ptrade 真实出站目标。
 - 已补 canonical 策略里的委托 / 成交主推事件记录，以及账户级订单 / 持仓巡检报告。
 - 当前主线已拆成两层审查：先用回测审查结构识别是否符合 Wyckoff，再用模拟盘审查主推、轮询、账户级巡检、订单 / 成交 / 持仓 / 报告闭环；其后再补交易时段 L2 / 逐笔权限验证和 JSON / sqlite3 reader 路径。
